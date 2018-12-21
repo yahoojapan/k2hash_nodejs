@@ -1,9 +1,11 @@
 k2hash nodejs addon library
 ===========================
+[![Build Status](https://travis-ci.org/yahoojapan/k2hash_nodejs.svg?branch=master)](https://travis-ci.org/yahoojapan/k2hash_nodejs)
 [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/yahoojapan/k2hash_nodejs/master/LICENSE)
 [![GitHub forks](https://img.shields.io/github/forks/yahoojapan/k2hash_nodejs.svg)](https://github.com/yahoojapan/k2hash_nodejs/network)
 [![GitHub stars](https://img.shields.io/github/stars/yahoojapan/k2hash_nodejs.svg)](https://github.com/yahoojapan/k2hash_nodejs/stargazers)
 [![GitHub issues](https://img.shields.io/github/issues/yahoojapan/k2hash_nodejs.svg)](https://github.com/yahoojapan/k2hash_nodejs/issues)
+[![NPM packages](https://badge.fury.io/js/k2hash.svg)](https://badge.fury.io/js/k2hash)
 
 K2HASH addon library for Node.js.  
  - K2HASH - NoSQL Key Value Store(KVS) library by Yahoo! JAPAN

@@ -1,5 +1,5 @@
-k2hash (0.0.1) unstable ; urgency=low
+k2hash (1.1.15) unstable ; urgency=low
 
-  * Preinit commit
+  * First published version
 
- -- Takeshi Nakatani <nakatani@yahoo-corp.jp>  Fri, 21 Dec 2018 10:00:00 +0900
+ -- Takeshi Nakatani <ggtakec@gmail.com>  Fri, 21 Dec 2018 14:55:45 +0900
