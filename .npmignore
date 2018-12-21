@@ -1,0 +1,53 @@
+#
+# K2HASH
+#
+# Copyright 2015 Yahoo! JAPAN corporation.
+#
+# K2HASH is key-valuew store base libraries.
+# K2HASH is made for the purpose of the construction of
+# original KVS system and the offer of the library.
+# The characteristic is this KVS library which Key can
+# layer. And can support multi-processing and multi-thread,
+# and is provided safely as available KVS.
+#
+# For the full copyright and license information, please view
+# the LICENSE file that was distributed with this source code.
+#
+# AUTHOR:   Takeshi Nakatani
+# CREATE:   Wed 7 Nov 2018
+# REVISION:
+#
+
+### Git
+.git/
+.gitignore
+
+### npm generated
+package-lock.json
+node_modules/
+
+### Files
+AUTHORS
+LICENSE
+*.yaml
+*.yml
+.publishrc
+
+### Directories
+buildutils/
+utils/
+test/
+test*/
+
+### Generated
+build/
+src/build/
+artifacts
+*.log
+*.xml
+
+#
+# VIM modelines
+#
+# vim:set ts=4 fenc=utf-8:
+#
