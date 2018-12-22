@@ -12,9 +12,9 @@
 # and is provided safely as available KVS.
 #
 # For the full copyright and license information, please view
-# the LICENSE file that was distributed with this source code.
+# the license file that was distributed with this source code.
 #
-# AUTHOR:   nakatani@yahoo-corp.jp
+# AUTHOR:   Takeshi Nakatani
 # CREATE:   Fri 21 Oct 2016
 # REVISION:
 #
@@ -26,7 +26,11 @@ PROGRAM_NAME=`basename $0`
 MYSCRIPTDIR=`dirname $0`
 MYSCRIPTDIR=`cd ${MYSCRIPTDIR}; pwd`
 SRCTOP=`cd ${MYSCRIPTDIR}/..; pwd`
-BUILDDIR=${SRCTOP}/src/build/Release
+if [ -f ${SRCTOP}/src/binding.gyp ]; then
+	BUILDDIR=${SRCTOP}/src/build/Release
+else
+	BUILDDIR=${SRCTOP}/build/Release
+fi
 
 ##############################################################
 # Commands

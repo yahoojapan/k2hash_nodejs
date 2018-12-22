@@ -1,3 +1,9 @@
+k2hash (1.1.16) unstable ; urgency=low
+
+  * Changed build base directory and comments in files
+
+ -- Takeshi Nakatani <ggtakec@gmail.com>  Sat, 22 Dec 2018 16:19:15 +0900
+
 k2hash (1.1.15) unstable ; urgency=low
 
   * First published version
