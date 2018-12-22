@@ -11,9 +11,9 @@
 # and is provided safely as available KVS.
 #
 # For the full copyright and license information, please view
-# the LICENSE file that was distributed with this source code.
+# the license file that was distributed with this source code.
 #
-# AUTHOR:   taishiha@yahoo-corp.jp
+# AUTHOR:   Taku Ishihara
 # CREATE:   Tue 10 Mar 2015
 # REVISION:
 #
@@ -26,11 +26,11 @@
 		{
 			"target_name":	"k2hash",
 			"sources":		[
-				"k2hash.cc",
-				"k2h_shm.cc",
-				"k2h_queue.cc",
-				"k2h_keyqueue.cc",
-				"k2h_cbs.cc"
+				"src/k2hash.cc",
+				"src/k2h_shm.cc",
+				"src/k2h_queue.cc",
+				"src/k2h_keyqueue.cc",
+				"src/k2h_cbs.cc"
 			],
 			"cflags":		[
 				#
@@ -44,39 +44,19 @@
 				#
 				"-Wno-deprecated-declarations"
 			],
-			"ldflags":		[
-				"-Wl,-rpath,/home/y/lib64",
-				"-Wl,-rpath,/home/y/lib"
-			],
 			"include_dirs":	[
-				"/home/y/include",
-				"/home/y/include64",
-				"<!(node -e \"require('nan')\")",
+				"<!(node -e \"require('nan')\")"
 			],
 			"libraries":	[
-				"-L/home/y/lib64",
 				"-lk2hash"
-			],
-			"conditions":	[
-				[
-					"coverage == 'true'",
-					{
-						"cflags_cc":	[
-							"--coverage"
-						],
-						"ldflags":		[
-							"--coverage"
-						]
-					}
-				]
 			]
 		},
 		{
 			"target_name":	"k2hqueue",
 			"sources":		[
-				"k2hqueue.cc",
-				"k2h_queue.cc",
-				"k2h_cbs.cc"
+				"src/k2hqueue.cc",
+				"src/k2h_queue.cc",
+				"src/k2h_cbs.cc"
 			],
 			"cflags":		[
 				#
@@ -90,39 +70,19 @@
 				#
 				"-Wno-deprecated-declarations"
 			],
-			"ldflags":		[
-				"-Wl,-rpath,/home/y/lib64",
-				"-Wl,-rpath,/home/y/lib"
-			],
 			"include_dirs":	[
-				"/home/y/include",
-				"/home/y/include64",
-				"<!(node -e \"require('nan')\")",
+				"<!(node -e \"require('nan')\")"
 			],
 			"libraries":	[
-				"-L/home/y/lib64",
 				"-lk2hash"
-			],
-			"conditions":	[
-				[
-					"coverage == 'true'",
-					{
-						"cflags_cc":	[
-							"--coverage"
-						],
-						"ldflags":		[
-							"--coverage"
-						]
-					}
-				]
 			]
 		},
 		{
 			"target_name":	"k2hkeyqueue",
 			"sources":		[
-				"k2hkeyqueue.cc",
-				"k2h_keyqueue.cc",
-				"k2h_cbs.cc"
+				"src/k2hkeyqueue.cc",
+				"src/k2h_keyqueue.cc",
+				"src/k2h_cbs.cc"
 			],
 			"cflags":		[
 				#
@@ -136,31 +96,11 @@
 				#
 				"-Wno-deprecated-declarations"
 			],
-			"ldflags":		[
-				"-Wl,-rpath,/home/y/lib64",
-				"-Wl,-rpath,/home/y/lib"
-			],
 			"include_dirs":	[
-				"/home/y/include",
-				"/home/y/include64",
-				"<!(node -e \"require('nan')\")",
+				"<!(node -e \"require('nan')\")"
 			],
 			"libraries":	[
-				"-L/home/y/lib64",
 				"-lk2hash"
-			],
-			"conditions":	[
-				[
-					"coverage == 'true'",
-					{
-						"cflags_cc":	[
-							"--coverage"
-						],
-						"ldflags":		[
-							"--coverage"
-						]
-					}
-				]
 			]
 		}
 	]

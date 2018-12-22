@@ -11,9 +11,9 @@
  * and is provided safely as available KVS.
  *
  * For the full copyright and license information, please view
- * the LICENSE file that was distributed with this source code.
+ * the license file that was distributed with this source code.
  *
- * AUTHOR:   nakatani@yahoo-corp.jp
+ * AUTHOR:   Takeshi Nakatani
  * CREATE:   Fri Mar 3 2017
  * REVISION:
  */
