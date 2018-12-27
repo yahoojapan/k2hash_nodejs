@@ -1,3 +1,10 @@
+k2hash (1.1.17) unstable ; urgency=low
+
+  * Fixed typo filename in package.json
+  * Updated .github/ISSUE_TEMPLATE.md
+
+ -- Takeshi Nakatani <ggtakec@gmail.com>  Thu, 27 Dec 2018 08:48:53 +0900
+
 k2hash (1.1.16) unstable ; urgency=low
 
   * Changed build base directory and comments in files
