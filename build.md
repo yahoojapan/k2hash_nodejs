@@ -30,8 +30,8 @@ $ sudo yum install nodejs npm
 ```
 
 ## 2. K2HASH library
-In advance, you need to install the developer package of K2HASH library(See [here](https://k2hash.antpick.ax/usage.html) for installation).  
-Without installing this package, you can also build the K2HASH library(See [here](https://k2hash.antpick.ax/build.html) for the build).
+In advance, you need to install the developer package of [K2HASH](https://k2hash.antpick.ax/) library(See [here](https://k2hash.antpick.ax/usage.html) for installation).  
+Without installing this package, you can also build the [K2HASH](https://k2hash.antpick.ax/) library(See [here](https://k2hash.antpick.ax/build.html) for the build).
 
 ## 3. Clone source codes from Github
 ```

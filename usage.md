@@ -24,7 +24,7 @@ The other way is to build the k2hash nodejs addon library yourself.
 
 ### 1.1 Creating an environment using packages
 This is a way to create an execution environment using packages.  
-The package of k2hash nodejs addon library is in npm.  
+The package of k2hash nodejs addon library is in [npm](https://www.npmjs.com/package/k2hash).  
 
 Before installing this package, you will need the k2hash developer package, so please refer to the [k2hash documentation](https://k2hash.antpick.ax/).  
 There are two ways to install k2hash.
@@ -40,7 +40,7 @@ $ npm install k2hash
 
 ### 1.2 Build to create an environment
 You can build the k2hash nodejs addon library from the [source code](https://github.com/yahoojapan/k2hash_nodejs).  
-See [here](https://node.k2hash.antpick.ax/build.html) for how to clone and build the source code github repository.
+See [here](https://nodejs.k2hash.antpick.ax/build.html) for how to clone and build the source code github repository.
 
 ## 2. Examples
 Please create the following file and check whether file creation, key and value writing and reading are possible.

@@ -34,7 +34,7 @@ $ npm install k2hash
 ```
 ### 1.2 ビルドして環境を構築
 ソースコードからk2hash nodejs addonライブラリをビルドすることができます。  
-ソースコードのgithubリポジトリをcloneし、ビルドする方法は[こちら](https://node.k2hash.antpick.ax/buildja.html)を参照してください。
+ソースコードのgithubリポジトリをcloneし、ビルドする方法は[こちら](https://nodejs.k2hash.antpick.ax/buildja.html)を参照してください。
 
 ## 2. サンプル
 以下のようなファイルを作成し、ファイル作成、キーと値の書き込み、読み出しができるか確認してみてください。  
