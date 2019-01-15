@@ -113,7 +113,7 @@ void K2hQueue::Init(void)
 	Nan::SetPrototypeMethod(tpl, "remove",		Remove);
 	Nan::SetPrototypeMethod(tpl, "dump",		Dump);
 
-	// Regst
+	// Reset
 	constructor.Reset(tpl->GetFunction()); 
 }
 
@@ -447,7 +447,7 @@ NAN_METHOD(K2hQueue::Init)
  *  		this method works asynchronization and calls callback function at finishing.
  *
  * @param[in] data		Specify the data which is queued
- * @param[in] pass		Specify optional passphrase if excrypting the key
+ * @param[in] pass		Specify optional passphrase if encrypting the key
  * @param[in] expire	Specify optional timeout seconds if you need
  * @param[in] cbfunc	callback function.
  *
@@ -531,7 +531,7 @@ NAN_METHOD(K2hQueue::Push)
  *			If the callback function is specified, or on callback handles for this,
  *  		this method works asynchronization and calls callback function at finishing.
  *
- *			Take care for pareformance, because k2hash library uses liner search for this
+ *			Take care for performance, because k2hash library uses liner search for this
  *			function.
  *
  * @param[in] cbfunc	callback function.
@@ -596,7 +596,7 @@ NAN_METHOD(K2hQueue::IsEmpty)
  *			If the callback function is specified, or on callback handles for this,
  *  		this method works asynchronization and calls callback function at finishing.
  *
- *			Take care for pareformance, because k2hash library uses liner search for this
+ *			Take care for performance, because k2hash library uses liner search for this
  *			function.
  *
  * @param[in] pos		Specify position of reading in queue.
@@ -633,7 +633,7 @@ NAN_METHOD(K2hQueue::Read)
 			}
 			callback			= new Nan::Callback(info[0].As<v8::Function>());
 		}else{
-			Nan::ThrowSyntaxError("Unkown first parameter.");
+			Nan::ThrowSyntaxError("Unknown first parameter.");
 			return;
 		}
 	}
@@ -649,7 +649,7 @@ NAN_METHOD(K2hQueue::Read)
 			}
 			callback			= new Nan::Callback(info[1].As<v8::Function>());
 		}else{
-			Nan::ThrowSyntaxError("Unkown second parameter.");
+			Nan::ThrowSyntaxError("Unknown second parameter.");
 			return;
 		}
 	}
@@ -718,7 +718,7 @@ NAN_METHOD(K2hQueue::Pop)
 			}
 			callback			= new Nan::Callback(info[0].As<v8::Function>());
 		}else{
-			Nan::ThrowSyntaxError("Unkown first parameter.");
+			Nan::ThrowSyntaxError("Unknown first parameter.");
 			return;
 		}
 	}
@@ -755,7 +755,7 @@ NAN_METHOD(K2hQueue::Pop)
  * 	, Callback cbfunc=null\
  *	)
  *
- * @brief	Remode count of queue datas
+ * @brief	Remove count of queue datas
  *			Not return any datas which are removed.
  *			If the count is specified over queuing count, the queue is empty and returns true.
  *			If the callback function is specified, or on callback handles for this,
@@ -773,7 +773,7 @@ NAN_METHOD(K2hQueue::Pop)
 NAN_METHOD(K2hQueue::Remove)
 {
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("Need to specify firast parameter for count of queue.");
+		Nan::ThrowSyntaxError("Need to specify first parameter for count of queue.");
 		return;
 	}
 
@@ -805,7 +805,7 @@ NAN_METHOD(K2hQueue::Remove)
 			}
 			callback			= new Nan::Callback(info[1].As<v8::Function>());
 		}else{
-			Nan::ThrowSyntaxError("Unkown second parameter.");
+			Nan::ThrowSyntaxError("Unknown second parameter.");
 			return;
 		}
 	}

@@ -30,7 +30,7 @@ var	expect		= common.expect;						// eslint-disable-line no-unused-vars
 // Common function
 //
 // [NOTE]
-// This sleep is high load avarage, but this script is only test.
+// This sleep is high load average, but this script is only test.
 //
 function sleep(milliseconds)
 {
@@ -43,11 +43,11 @@ function sleep(milliseconds)
 }
 
 //--------------------------------------------------------------
-// Main discribe section
+// Main describe section
 //--------------------------------------------------------------
 describe('K2HKEYQUEUE', function(){						// eslint-disable-line no-undef
 	//
-	// Before in discribe section
+	// Before in describe section
 	//
 	before(function(done){								// eslint-disable-line no-undef
 		// Nothing to do
@@ -55,7 +55,7 @@ describe('K2HKEYQUEUE', function(){						// eslint-disable-line no-undef
 	});
 
 	//
-	// After in discribe section
+	// After in describe section
 	//
 	after(function(){									// eslint-disable-line no-undef
 		// Nothing to do
@@ -2449,7 +2449,7 @@ describe('K2HKEYQUEUE', function(){						// eslint-disable-line no-undef
 			}
 			expect(error).to.be.null;
 
-			// check attibute value
+			// check attribute value
 			expect(value).to.equal('attr_test_attr_val_101');
 
 			// unset
@@ -2616,7 +2616,7 @@ describe('K2HKEYQUEUE', function(){						// eslint-disable-line no-undef
 			}
 			expect(error).to.be.null;
 
-			// check attibute value
+			// check attribute value
 			expect(value).to.equal('attr_test_attr_val_201');
 
 			// unset
@@ -2779,7 +2779,7 @@ describe('K2HKEYQUEUE', function(){						// eslint-disable-line no-undef
 					}
 					expect(error).to.be.null;
 
-					// check attibute value
+					// check attribute value
 					expect(value).to.equal('attr_test_attr_val_301');
 
 					// close

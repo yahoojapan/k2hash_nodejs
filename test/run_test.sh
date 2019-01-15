@@ -54,7 +54,7 @@ CheckCommands()
 }
 
 ##############################################################
-# Parse aruguments
+# Parse arguments
 #
 PrintUsage()
 {

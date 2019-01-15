@@ -227,7 +227,7 @@ void K2hNode::Init(void)
 
 	Nan::SetPrototypeMethod(tpl, "addAttr",						AddAttr);
 
-	// Regst
+	// Reset
 	constructor.Reset(tpl->GetFunction()); 
 }
 
@@ -1785,7 +1785,7 @@ NAN_METHOD(K2hNode::Close)
  * @param[in] key		Specify the key name.
  * @param[in] subkey	Specify the subkey name when you want to get value for it.
  * @param[in] attrcheck	If this parameter is true, enable to check attributes which is presented by builtin.
- * @param[in] pass		Specify optional passphrase if excrypting the key
+ * @param[in] pass		Specify optional passphrase if encrypting the key
  * @param[in] cbfunc	callback function.
  *
  * @return	Returns the value. If there is no key(subkey), returns null.
@@ -1992,7 +1992,7 @@ NAN_METHOD(K2hNode::GetSubkeys)
  * )
  * @brief	Set the value to the key.
  *
- *	If the key is existed, the key's value is over wrote by nre value.
+ *	If the key is existed, the key's value is over wrote by new value.
  *	Then if the key has subkeys, those subkeys is not changed.
  *	If the subkey parameter is specified, new subkey is set in the key and
  *	the value is set to new subkey. Then the subkey is existed, the subkey's
@@ -2000,10 +2000,10 @@ NAN_METHOD(K2hNode::GetSubkeys)
  *	If the callback function is specified, or on callback handles for this,
  *  this method works asynchronization and calls callback function at finishing.
  *
- * @param[in] key		Spesify the key name
+ * @param[in] key		Specify the key name
  * @param[in] value		Specify the value
  * @param[in] subkey	Specify the subkey name, if you want to set the value to subkey.
- * @param[in] pass		Specify optional passphrase if excrypting the key
+ * @param[in] pass		Specify optional passphrase if encrypting the key
  * @param[in] expire	Specify optional timeout seconds if you need
  * @param[in] cbfunc	callback function.
  *
@@ -2423,7 +2423,7 @@ NAN_METHOD(K2hNode::RemoveAll)
  * @fn bool PrintState(int fd[=option])
  * @brief	Put K2HASH status
  *
- *	If fd is not specified, the status is put to atdout.
+ *	If fd is not specified, the status is put to stdout.
  *
  * @param[in] fd	Specify output stream
  *
@@ -2448,8 +2448,8 @@ NAN_METHOD(K2hNode::PrintState)
 		bool result = obj->_k2hshm.PrintState(fp);
 
 		// [NOTE]
-		// Must flush at here, because nodejs's file discriptor is used for fd.
-		// Otherwise, calling flash on nodejs(javascript) is not effeted.
+		// Must flush at here, because nodejs's file descriptor is used for fd.
+		// Otherwise, calling flash on nodejs(javascript) is not effected.
 		fflush(fp);
 
 		info.GetReturnValue().Set(result);
@@ -2461,7 +2461,7 @@ NAN_METHOD(K2hNode::PrintState)
  * @fn bool PrintVersion(int fd[=option])
  * @brief	Put K2HASH library version
  *
- *	If fd is not specified, the status is put to atdout.
+ *	If fd is not specified, the status is put to stdout.
  *
  * @param[in] fd	Specify output stream
  *
@@ -2479,8 +2479,8 @@ NAN_METHOD(K2hNode::PrintVersion)
 	k2h_print_version(fp);
 
 	// [NOTE]
-	// Must flush at here, because nodejs's file discriptor is used for fd.
-	// Otherwise, calling flash on nodejs(javascript) is not effeted.
+	// Must flush at here, because nodejs's file descriptor is used for fd.
+	// Otherwise, calling flash on nodejs(javascript) is not effected.
 	fflush(fp);
 
 	info.GetReturnValue().Set(Nan::True());
@@ -2491,7 +2491,7 @@ NAN_METHOD(K2hNode::PrintVersion)
  * @fn bool DumpHead(int fd[=option])
  * @brief	Dump K2HASH head information
  *
- *	If fd is not specified, the status is put to atdout.
+ *	If fd is not specified, the status is put to stdout.
  *
  * @param[in] fd	Specify output stream
  *
@@ -2528,7 +2528,7 @@ NAN_METHOD(K2hNode::DumpHead)
  * @fn bool DumpKeytable(int fd[=option])
  * @brief	Dump K2HASH head and tables information
  *
- *	If fd is not specified, the status is put to atdout.
+ *	If fd is not specified, the status is put to stdout.
  *
  * @param[in] fd	Specify output stream
  *
@@ -2565,7 +2565,7 @@ NAN_METHOD(K2hNode::DumpKeytable)
  * @fn bool DumpFullKeytable(int fd[=option])
  * @brief	Dump K2HASH head, tables and collision tables information
  *
- *	If fd is not specified, the status is put to atdout.
+ *	If fd is not specified, the status is put to stdout.
  *
  * @param[in] fd	Specify output stream
  *
@@ -2602,7 +2602,7 @@ NAN_METHOD(K2hNode::DumpFullKeytable)
  * @fn bool DumpElementtable(int fd[=option])
  * @brief	Dump K2HASH head, tables, collision tables, element data information
  *
- *	If fd is not specified, the status is put to atdout.
+ *	If fd is not specified, the status is put to stdout.
  *
  * @param[in] fd	Specify output stream
  *
@@ -2639,7 +2639,7 @@ NAN_METHOD(K2hNode::DumpElementtable)
  * @fn bool DumpFull(int fd[=option])
  * @brief	Dump K2HASH all information(head, tables, collision tables, element data, page data)
  *
- *	If fd is not specified, the status is put to atdout.
+ *	If fd is not specified, the status is put to stdout.
  *
  * @param[in] fd	Specify output stream
  *
@@ -2682,7 +2682,7 @@ NAN_METHOD(K2hNode::DumpFull)
  * )
  * @brief	Disable/Enable transaction
  *
- *	If the transfile is not specified, you must set customized transction
+ *	If the transfile is not specified, you must set customized transaction
  *	plugin for your system. The builtin transaction must specify the transaction
  *	file path.
  *	If you need to change the transaction queue key name, you can specify the
@@ -2691,7 +2691,7 @@ NAN_METHOD(K2hNode::DumpFull)
  *	If you specify expire, you can set the expire time(s) for each transaction
  *	data. If expire is set 0, it means that the data is not expired.
  *
- * @param[in] enable 	If true is specified, the transaction is enabled. false for desabled.
+ * @param[in] enable 	If true is specified, the transaction is enabled. false for disabled.
  * @param[in] transfile	Specify the transaction file path
  * @param[in] prefix 	Specify the custom transaction queue key name for prefix.
  * @param[in] param 	Specify the custom transaction parameter
@@ -2839,7 +2839,7 @@ NAN_METHOD(K2hNode::UnsetTransactionThreadPool)
  * @fn int GetTransactionThreadPool(void)
  * @brief	Get transaction thread pool count
  *
- * @return	Return count of thransaction thread pool
+ * @return	Return count of transaction thread pool
  */
 
 NAN_METHOD(K2hNode::GetTransactionThreadPool)
@@ -2854,9 +2854,9 @@ NAN_METHOD(K2hNode::GetTransactionThreadPool)
 /**
  * @memberof K2hNode
  * @fn bool SetTransactionThreadPool(int count)
- * @brief	Set the thransaction thread count
+ * @brief	Set the transaction thread count
  *
- * @param[in] count	Specify the count of thransaction thread
+ * @param[in] count	Specify the count of transaction thread
  *
  * @return return true for success, false for failure
  */
@@ -3120,7 +3120,7 @@ NAN_METHOD(K2hNode::getKeyQueue)
  * )
  * @brief	Set builtin attributes for K2HASH.
  *
- *	The bultin attributes are mtime/history/expire/encrypt(and pass phrease)
+ *	The builtin attributes are mtime/history/expire/encrypt(and pass phrase)
  *
  * @param[in] is_mtime		Specify flag for mtime, enable(1), disable(0), default(-1)
  * @param[in] is_history	Specify flag for history, enable(1), disable(0), default(-1)
@@ -3169,7 +3169,7 @@ NAN_METHOD(K2hNode::SetCommonAttribute)
 /**
  * @memberof K2hNode
  * @fn bool ClearCommonAttribute()
- * @brief	Clear bultin attribute setting(to default)
+ * @brief	Clear builtin attribute setting(to default)
  *
  * @return return true for success, false for failure
  */
@@ -3186,7 +3186,7 @@ NAN_METHOD(K2hNode::CleanCommonAttribute)
 /**
  * @memberof K2hNode
  * @fn bool AddAttrPluginLib(String libfile)
- * @brief	Set custom attribute lugin(library)
+ * @brief	Set custom attribute plugin(library)
  *
  * @param[in] libfile	Specify the custom attribute library path
  *
@@ -3217,8 +3217,8 @@ NAN_METHOD(K2hNode::AddAttrPluginLib)
  *	If the default encrypting is disabled with pass phrase, it means that
  *	do only decrypting.
  *
- * @param[in] encpass				Specify optional passphrase if excrypting the key
- * @param[in] is_default_encrype	true is enabled default encrypting.
+ * @param[in] encpass				Specify optional passphrase if encrypting the key
+ * @param[in] is_default_encrypt	true is enabled default encrypting.
  *
  * @return return true for success, false for failure
  */
@@ -3322,7 +3322,7 @@ NAN_METHOD(K2hNode::GetAttrInfos)
  * @param[in] key	Specify the key name
  * @param[in] cbfunc	callback function.
  *
- * @return	If there are attibutes, returns attribute names list. If not, returns null.
+ * @return	If there are attributes, returns attribute names list. If not, returns null.
  *			Returns always true when the callback function is specified.
  *
  */
