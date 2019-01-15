@@ -27,11 +27,11 @@ var	assert		= common.assert;						// eslint-disable-line no-unused-vars
 var	expect		= common.expect;						// eslint-disable-line no-unused-vars
 
 //--------------------------------------------------------------
-// Main discribe section
+// Main describe section
 //--------------------------------------------------------------
 describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
-	// Before in discribe section
+	// Before in describe section
 	//
 	before(function(done){								// eslint-disable-line no-undef
 		// Nothing to do
@@ -39,7 +39,7 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	});
 
 	//
-	// After in discribe section
+	// After in describe section
 	//
 	after(function(){									// eslint-disable-line no-undef
 		// Nothing to do
