@@ -1,6 +1,6 @@
 {
   "name": "k2hash",
-  "version": "1.1.17",
+  "version": "1.1.18",
   "description": "K2HASH addon library for Node.js",
   "os": "linux",
   "main": "index.js",

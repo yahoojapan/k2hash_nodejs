@@ -1,3 +1,9 @@
+k2hash_nodejs (1.1.18) unstable ; urgency=low
+
+  * Reflected the spelling check result for all sources - #2
+
+ -- Takeshi Nakatani <ggtakec@gmail.com>  Thu, 17 Jan 2019 14:11:01 +0900
+
 k2hash (1.1.17) unstable ; urgency=low
 
   * Fixed typo filename in package.json
