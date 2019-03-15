@@ -16,7 +16,9 @@ arrow_link_environments: <a href="environments.html" class="link-title"><span cl
 # **K2HASH Node.js**
 **K2HASH Node.js** (addon library for Node.js) a Node.js addon library which wraps **K2HASH** **KVS** (key-value store) library with some uniq features.
 Using **K2HASH Node.js**, all functions provided by the **K2HASH** library can be used from the server side JavaScript environment [Node.js](https://nodejs.org/).
-**K2HASH Node.js** is one of [AntPickax](https://antpick.ax/)'s open source product by Yahoo! JAPAN.
+**K2HASH Node.js** is one of [AntPickax](https://antpick.ax/)'s open source product by Yahoo! JAPAN.  
+
+![k2HASH Node.js addon](images/top_k2hash_nodejs.png)
 
 ## {{ page.arrow_link_overview }}
 [Overview](home.html) about **K2HASH Node.js** library.
