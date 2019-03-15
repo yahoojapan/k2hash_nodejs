@@ -827,7 +827,7 @@ Then if the key does not have subkey, any value is returned.
 - attrcheck  
   If this parameter is true, enable to check attributes which is presented by builtin.
 - pass  
-  Specify optional passphrase if excrypting the key
+  Specify optional passphrase if encrypting the key
 - cbfunc  
   When using this method as asynchronous, the following prototype callback function can be specified.  
   ```
@@ -1023,13 +1023,13 @@ bool SetValue(  String   key,
 
 #### Arguments
 - key  
-  Spesify the key name.
+  Specify the key name.
 - value  
   Specify the value.
 - subkey  
   Specify the subkey name, if you want to set the value to subkey.
 - pass  
-  Specify optional passphrase if excrypting the key.
+  Specify optional passphrase if encrypting the key.
 - expire  
   Specify optional timeout seconds if you need.
   If 0 is specified, it means that the key(value) is never expired.
@@ -1524,7 +1524,7 @@ k2h.PrintVersion();
 ```
 
 ### <a name="K2HASH-DUMPHEAD"> k2hash::DumpHead()
-This method puts the result of dumpping head table of k2hash data.
+This method puts the result of dumping head table of k2hash data.
 
 #### Format
 ```
@@ -1550,7 +1550,7 @@ k2h.Close();
 ```
 
 ### <a name="K2HASH-DUMPKEYTABLE"> k2hash::DumpKeytable()
-This method puts the result of dumpping key tables of k2hash data.
+This method puts the result of dumping key tables of k2hash data.
 
 #### Format
 ```
@@ -1576,7 +1576,7 @@ k2h.Close();
 ```
 
 ### <a name="K2HASH-DUMPFULLKEYTABLE"> k2hash::DumpFullKeytable()
-This method puts the result of full dumpping key tables of k2hash data.
+This method puts the result of full dumping key tables of k2hash data.
 
 #### Format
 ```
@@ -1602,7 +1602,7 @@ k2h.Close();
 ```
 
 ### <a name="K2HASH-DUMPELEMENTTABLE"> k2hash::DumpElementtable()
-This method puts the result of dumpping all elements data of k2hash data.
+This method puts the result of dumping all elements data of k2hash data.
 
 #### Format
 ```
@@ -1628,7 +1628,7 @@ k2h.Close();
 ```
 
 ### <a name="K2HASH-DUMPFULL"> k2hash::DumpFull()
-This method puts the result of dumpping all data of k2hash data.
+This method puts the result of dumping all data of k2hash data.
 
 #### Format
 ```
@@ -1668,7 +1668,7 @@ bool Transaction(bool   enable,
 
 #### Arguments
 - enable  
-  If true is specified, the transaction is enabled. false for desabled.
+  If true is specified, the transaction is enabled. false for disabled.
 - transfile  
   Specify the transaction file path.
 - prefix  
@@ -1807,7 +1807,7 @@ k2h.Close();
 ```
 
 ### <a name="K2HASH-SETTRANSACTIONPOOL"> k2hash::SetTransactionThreadPool()
-This method sets the thransaction thread count.
+This method sets the transaction thread count.
 
 #### Format
 ```
@@ -1816,7 +1816,7 @@ bool SetTransactionThreadPool(int count)
 
 #### Arguments
 - count  
-  Specify the count of thransaction thread.
+  Specify the count of transaction thread.
 
 #### Return Values
 This method returns success(**true**) or failure(**false**).  
@@ -2014,7 +2014,7 @@ Asynchronous processing can be described by the following two implementations.
 
 ### <a name="K2HASH-SETCOMMONATTR"> k2hash::SetCommonAttribute()
 This method sets builtin attributes for K2HASH.  
-The bultin attributes are mtime/history/expire/encrypt(and pass phrease)
+The bultin attributes are mtime/history/expire/encrypt(and pass phrase)
 
 #### Format
 ```
@@ -2118,7 +2118,7 @@ bool AddAttrCryptPass(String encpass,
 
 #### Arguments
 - encpass  
-  Specify optional passphrase if excrypting the key.
+  Specify optional passphrase if encrypting the key.
 - is_default_encrypt  
   true is enabled default encrypting..
 
@@ -2577,7 +2577,7 @@ k2h.Close();
 ```
 
 ### <a name="K2HQUEUE-PUSH"> k2hqueue::Push()
-This method pushs data to queue.  
+This method pushes data to queue.  
 
 #### Format
 ```
@@ -2592,7 +2592,7 @@ bool Push(String    data,
 - data  
   Specify the data which is queued.
 - pass  
-  Specify optional passphrase if excrypting the key.
+  Specify optional passphrase if encrypting the key.
 - expire  
   Specify optional timeout seconds if you need.
 - cbfunc  
@@ -2797,7 +2797,7 @@ k2h.Close();
 ### <a name="K2HQUEUE-READ"> k2hqueue::Read()
 This method reads queue data at queue position.  
 Not remove the data from queue after reading.  
-Take care for pareformance, because k2hash library uses liner search for this function.
+Take care for performance, because k2hash library uses liner search for this function.
 
 #### Format
 ```
@@ -3175,7 +3175,7 @@ k2h.Close();
 ```
 
 ### <a name="K2HKEYQUEUE-PUSH"> k2hkeyqueue::Push()
-This method pushs data to queue.  
+This method pushes data to queue.  
 
 #### Format
 ```
@@ -3193,7 +3193,7 @@ bool Push(String    key,
 - val  
   Specify the value which is set key.
 - pass  
-  Specify optional passphrase if excrypting the key.
+  Specify optional passphrase if encrypting the key.
 - expire  
   Specify optional timeout seconds if you need.
 - cbfunc  
@@ -3398,7 +3398,7 @@ k2h.Close();
 ### <a name="K2HKEYQUEUE-READ"> k2hkeyqueue::Read()
 This method reads queue data at queue position.  
 Not remove the data from queue after reading.  
-Take care for pareformance, because k2hash library uses liner search for this function.
+Take care for performance, because k2hash library uses liner search for this function.
 
 #### Format
 ```

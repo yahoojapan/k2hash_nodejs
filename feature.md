@@ -15,7 +15,7 @@ next_string: Usage
 
 # Feature
 K2HASH Node.js is an addon library that implemented [K2HASH](https://k2hash.antpick.ax/) of NoSQL Key Value Store(KVS) library published by Yahoo! JAPAN as open source so that it can be used on server side JavaScript environment [Node.js](https://nodejs.org/).
-Developers can use the K2HASH Node.js addoon library in the same way as general JavaScript libraries and Node.js addon libraries.
+Developers can use the K2HASH Node.js addon library in the same way as general JavaScript libraries and Node.js addon libraries.
 
 ## Synchronous and Asynchronous
 K2HASH Node.js addon library provides [K2HASH](https://k2hash.antpick.ax/) functions synchronously and asynchronously with JavaScript.

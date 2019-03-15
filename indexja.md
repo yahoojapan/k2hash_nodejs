@@ -16,7 +16,9 @@ arrow_link_environments: <a href="environmentsja.html" class="link-title"><span 
 # **K2HASH Node.js**
 **K2HASH Node.js**（addon library for Node.js）は、いくつかの特徴を備えた独自の **KVS**（key-value store）ライブラリ **K2HASH**（NoSQL Key Value Store(KVS) library）のNode.jsアドオンライブラリです。  
 **K2HASH Node.js** を利用して、**K2HASH**ライブラリが提供するすべての機能をサーバーサイドJavaScript環境の [Node.js](https://nodejs.org/ja/)で利用できます。  
-**K2HASH Node.js** は、Yahoo! JAPANがオープンソースとして公開するプロダクト [AntPickax](https://antpick.ax/indexja.html) のひとつです。
+**K2HASH Node.js** は、Yahoo! JAPANがオープンソースとして公開するプロダクト [AntPickax](https://antpick.ax/indexja.html) のひとつです。  
+
+![k2HASH Node.js addon](images/top_k2hash_nodejs.png)
 
 ## {{ page.arrow_link_overview }}
 **K2HASH Node.js** の[概要](homeja.html)について説明します。  
