@@ -1,3 +1,9 @@
+k2hash_nodejs (1.1.19) unstable ; urgency=low
+
+  * Added k2hash nodejs addon overview image to README.md - #8
+
+ -- Takeshi Nakatani <ggtakec@gmail.com>  Fri, 15 Mar 2019 11:18:54 +0900
+
 k2hash_nodejs (1.1.18) unstable ; urgency=low
 
   * Reflected the spelling check result for all sources - #2
