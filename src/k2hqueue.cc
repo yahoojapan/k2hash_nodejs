@@ -33,13 +33,16 @@ NAN_METHOD(CreateObject)
 void InitAll(Local<Object> exports, Local<Object> module)
 {
 	K2hQueue::Init() ;
-	module->Set(Nan::New("exports").ToLocalChecked(), Nan::New<FunctionTemplate>(CreateObject)->GetFunction()); 
+	Nan::Set(module, Nan::New("exports").ToLocalChecked(), Nan::GetFunction(Nan::New<FunctionTemplate>(CreateObject)).ToLocalChecked());
 }
 
 NODE_MODULE(k2hqueue, InitAll)
 
 /*
- * VIM modelines
- *
- * vim:set ts=4 fenc=utf-8:
+ * Local variables:
+ * tab-width: 4
+ * c-basic-offset: 4
+ * End:
+ * vim600: expandtab sw=4 ts=4 fdm=marker
+ * vim<600: expandtab sw=4 ts=4
  */

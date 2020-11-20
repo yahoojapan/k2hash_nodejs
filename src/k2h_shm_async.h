@@ -378,7 +378,7 @@ class GetSubkeysWorker : public Nan::AsyncWorker
 			v8::Local<v8::Array>	retarr		= Nan::New<v8::Array>();
 			int						pos			= 0 ;
 			for(strarr_t::const_iterator iter = subkey_array.begin(); iter != subkey_array.end(); ++iter, ++pos){
-				retarr->Set(pos, Nan::New<v8::String>(iter->c_str()).ToLocalChecked());
+				Nan::Set(retarr, pos, Nan::New<v8::String>(iter->c_str()).ToLocalChecked());
 			}
 			const int				argc		= 2;
 			v8::Local<v8::Value>	argv[argc]	= { Nan::Null(), retarr };
@@ -463,7 +463,7 @@ class GetAttrsWorker : public Nan::AsyncWorker
 			v8::Local<v8::Array>	retarr		= Nan::New<v8::Array>();
 			int						pos			= 0 ;
 			for(strarr_t::const_iterator iter = attrs_array.begin(); iter != attrs_array.end(); ++iter, ++pos){
-				retarr->Set(pos, Nan::New<v8::String>(iter->c_str()).ToLocalChecked());
+				Nan::Set(retarr, pos, Nan::New<v8::String>(iter->c_str()).ToLocalChecked());
 			}
 			const int				argc		= 2;
 			v8::Local<v8::Value>	argv[argc]	= { Nan::Null(), retarr };
@@ -1099,7 +1099,10 @@ class ArchiveWorker : public Nan::AsyncWorker
 #endif
 
 /*
- * VIM modelines
- *
- * vim:set ts=4 fenc=utf-8:
+ * Local variables:
+ * tab-width: 4
+ * c-basic-offset: 4
+ * End:
+ * vim600: expandtab sw=4 ts=4 fdm=marker
+ * vim<600: expandtab sw=4 ts=4
  */
