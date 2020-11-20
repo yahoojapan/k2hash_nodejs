@@ -1,29 +1,29 @@
-k2hash_nodejs (1.1.19) unstable ; urgency=low
+k2hash (1.1.19) unstable; urgency=low
 
   * Added k2hash nodejs addon overview image to README.md - #8
 
  -- Takeshi Nakatani <ggtakec@gmail.com>  Fri, 15 Mar 2019 11:18:54 +0900
 
-k2hash_nodejs (1.1.18) unstable ; urgency=low
+k2hash (1.1.18) unstable; urgency=low
 
   * Reflected the spelling check result for all sources - #2
 
  -- Takeshi Nakatani <ggtakec@gmail.com>  Thu, 17 Jan 2019 14:11:01 +0900
 
-k2hash (1.1.17) unstable ; urgency=low
+k2hash (1.1.17) unstable; urgency=low
 
   * Fixed typo filename in package.json
   * Updated .github/ISSUE_TEMPLATE.md
 
  -- Takeshi Nakatani <ggtakec@gmail.com>  Thu, 27 Dec 2018 08:48:53 +0900
 
-k2hash (1.1.16) unstable ; urgency=low
+k2hash (1.1.16) unstable; urgency=low
 
   * Changed build base directory and comments in files
 
  -- Takeshi Nakatani <ggtakec@gmail.com>  Sat, 22 Dec 2018 16:19:15 +0900
 
-k2hash (1.1.15) unstable ; urgency=low
+k2hash (1.1.15) unstable; urgency=low
 
   * First published version
 
