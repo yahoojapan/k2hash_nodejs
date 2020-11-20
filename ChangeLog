@@ -1,3 +1,11 @@
+k2hash (1.1.20) unstable; urgency=low
+
+  * Switched Travis CI to Github actions - #13
+  * Supported Node.js 12 and 14 - #12
+  * Fixed wrong package name in ChangeLog - #11
+
+ -- Takeshi Nakatani <ggtakec@gmail.com>  Fri, 20 Nov 2020 11:44:29 +0900
+
 k2hash (1.1.19) unstable; urgency=low
 
   * Added k2hash nodejs addon overview image to README.md - #8
