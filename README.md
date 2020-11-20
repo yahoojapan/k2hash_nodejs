@@ -1,6 +1,6 @@
 k2hash nodejs addon library
 ===========================
-[![Node.js AntPickax CI](https://github.com/yahoojapan/k2hash_nodejs/workflows/C/C++%20AntPickax%20CI/badge.svg)](https://github.com/yahoojapan/k2hash_nodejs/actions)
+[![Node.js AntPickax CI](https://github.com/yahoojapan/k2hash_nodejs/workflows/Node.js%20AntPickax%20CI/badge.svg)](https://github.com/yahoojapan/k2hash_nodejs/actions)
 [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/yahoojapan/k2hash_nodejs/master/LICENSE)
 [![GitHub forks](https://img.shields.io/github/forks/yahoojapan/k2hash_nodejs.svg)](https://github.com/yahoojapan/k2hash_nodejs/network)
 [![GitHub stars](https://img.shields.io/github/stars/yahoojapan/k2hash_nodejs.svg)](https://github.com/yahoojapan/k2hash_nodejs/stargazers)
