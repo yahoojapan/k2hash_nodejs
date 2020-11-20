@@ -114,7 +114,7 @@ void K2hQueue::Init(void)
 	Nan::SetPrototypeMethod(tpl, "dump",		Dump);
 
 	// Reset
-	constructor.Reset(tpl->GetFunction()); 
+	constructor.Reset(Nan::GetFunction(tpl).ToLocalChecked());
 }
 
 NAN_METHOD(K2hQueue::New)
@@ -420,8 +420,8 @@ NAN_METHOD(K2hQueue::Init)
 		Nan::ThrowSyntaxError("No k2hash object is specified.");
 		return;
 	}
-	K2hNode*	objNode	= ObjectWrap::Unwrap<K2hNode>(info[0]->ToObject() ) ;
-	bool		is_fifo	= (info.Length() < 2 ? true : info[1]->BooleanValue());
+	K2hNode*	objNode	= ObjectWrap::Unwrap<K2hNode>(info[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked());
+	bool		is_fifo	= (info.Length() < 2 ? true : Nan::To<bool>(info[1]).ToChecked());
 	std::string	prefix;
 	if(3 <= info.Length()){
 		Nan::Utf8String	buf(info[2]);
@@ -497,7 +497,7 @@ NAN_METHOD(K2hQueue::Push)
 			}
 			callback			= new Nan::Callback(info[2].As<v8::Function>());
 		}else if(info[2]->IsInt32()){
-			int	nexpire			= info[2]->Int32Value();
+			int	nexpire			= Nan::To<int32_t>(info[2]).ToChecked();
 			expire				= static_cast<time_t>(nexpire);
 		}else{
 			Nan::ThrowSyntaxError("Expire parameter must be int32 value.");
@@ -621,7 +621,7 @@ NAN_METHOD(K2hQueue::Read)
 
 	if(0 < info.Length()){
 		if(info[0]->IsNumber()){
-			pos					= info[0]->NumberValue();
+			pos					= Nan::To<int>(info[0]).ToChecked();
 		}else if(info[0]->IsString()){
 			Nan::Utf8String	buf(info[0]);
 			strpass				= std::string(*buf);
@@ -787,7 +787,7 @@ NAN_METHOD(K2hQueue::Remove)
 		Nan::ThrowSyntaxError("First parameter must be number.");
 		return;
 	}else{
-		count				= info[0]->NumberValue();
+		count				= Nan::To<int>(info[0]).ToChecked();
 		if(count <= 0){
 			Nan::ThrowSyntaxError("Remove queue count must be over 0.");
 			return;
@@ -843,7 +843,7 @@ NAN_METHOD(K2hQueue::Dump)
 {
 	K2hQueue*	obj	= Nan::ObjectWrap::Unwrap<K2hQueue>(info.This());
 
-	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? info[0]->Int32Value() : -1;
+	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? Nan::To<int32_t>(info[0]).ToChecked() : -1;
 	FILE*		fp	= (-1 == fd ? stdout : fdopen(fd, "a"));
 	if(!fp){
 		Nan::ThrowError("could not open output stream.");
@@ -863,7 +863,10 @@ NAN_METHOD(K2hQueue::Dump)
 //@}
 
 /*
- * VIM modelines
- *
- * vim:set ts=4 fenc=utf-8:
+ * Local variables:
+ * tab-width: 4
+ * c-basic-offset: 4
+ * End:
+ * vim600: expandtab sw=4 ts=4 fdm=marker
+ * vim<600: expandtab sw=4 ts=4
  */

@@ -228,7 +228,7 @@ void K2hNode::Init(void)
 	Nan::SetPrototypeMethod(tpl, "addAttr",						AddAttr);
 
 	// Reset
-	constructor.Reset(tpl->GetFunction()); 
+	constructor.Reset(Nan::GetFunction(tpl).ToLocalChecked());
 }
 
 NAN_METHOD(K2hNode::New)
@@ -1029,7 +1029,7 @@ NAN_METHOD(K2hNode::Create)
 			}
 			callback		= new Nan::Callback(info[1].As<v8::Function>());
 		}else{
-			isfullmapping	= info[1]->BooleanValue();
+			isfullmapping	= Nan::To<bool>(info[1]).ToChecked();
 		}
 	}
 	if(2 < info.Length()){
@@ -1040,7 +1040,7 @@ NAN_METHOD(K2hNode::Create)
 			}
 			callback		= new Nan::Callback(info[2].As<v8::Function>());
 		}else{
-			mask_bitcnt		= info[2]->NumberValue();
+			mask_bitcnt		= Nan::To<int>(info[2]).ToChecked();
 		}
 	}
 	if(3 < info.Length()){
@@ -1051,7 +1051,7 @@ NAN_METHOD(K2hNode::Create)
 			}
 			callback		= new Nan::Callback(info[3].As<v8::Function>());
 		}else{
-			cmask_bitcnt	= info[3]->NumberValue();
+			cmask_bitcnt	= Nan::To<int>(info[3]).ToChecked();
 		}
 	}
 	if(4 < info.Length()){
@@ -1062,7 +1062,7 @@ NAN_METHOD(K2hNode::Create)
 			}
 			callback		= new Nan::Callback(info[4].As<v8::Function>());
 		}else{
-			max_element_cnt	= info[4]->NumberValue();
+			max_element_cnt	= Nan::To<int>(info[4]).ToChecked();
 		}
 	}
 	if(5 < info.Length()){
@@ -1073,7 +1073,7 @@ NAN_METHOD(K2hNode::Create)
 			}
 			callback		= new Nan::Callback(info[5].As<v8::Function>());
 		}else{
-			pagesize		= info[5]->NumberValue();
+			pagesize		= Nan::To<int>(info[5]).ToChecked();
 		}
 	}
 	if(6 < info.Length()){
@@ -1160,7 +1160,7 @@ NAN_METHOD(K2hNode::Open)
 			}
 			callback		= new Nan::Callback(info[1].As<v8::Function>());
 		}else{
-			isreadonly		= info[1]->BooleanValue();
+			isreadonly		= Nan::To<bool>(info[1]).ToChecked();
 		}
 	}
 	if(2 < info.Length()){
@@ -1171,7 +1171,7 @@ NAN_METHOD(K2hNode::Open)
 			}
 			callback		= new Nan::Callback(info[2].As<v8::Function>());
 		}else{
-			istempfile		= info[2]->BooleanValue();
+			istempfile		= Nan::To<bool>(info[2]).ToChecked();
 		}
 	}
 	if(3 < info.Length()){
@@ -1182,7 +1182,7 @@ NAN_METHOD(K2hNode::Open)
 			}
 			callback		= new Nan::Callback(info[3].As<v8::Function>());
 		}else{
-			isfullmapping	= info[3]->BooleanValue();
+			isfullmapping	= Nan::To<bool>(info[3]).ToChecked();
 		}
 	}
 	if(4 < info.Length()){
@@ -1193,7 +1193,7 @@ NAN_METHOD(K2hNode::Open)
 			}
 			callback		= new Nan::Callback(info[4].As<v8::Function>());
 		}else{
-			mask_bitcnt		= info[4]->NumberValue();
+			mask_bitcnt		= Nan::To<int>(info[4]).ToChecked();
 		}
 	}
 	if(5 < info.Length()){
@@ -1204,7 +1204,7 @@ NAN_METHOD(K2hNode::Open)
 			}
 			callback		= new Nan::Callback(info[5].As<v8::Function>());
 		}else{
-			cmask_bitcnt	= info[5]->NumberValue();
+			cmask_bitcnt	= Nan::To<int>(info[5]).ToChecked();
 		}
 	}
 	if(6 < info.Length()){
@@ -1215,7 +1215,7 @@ NAN_METHOD(K2hNode::Open)
 			}
 			callback		= new Nan::Callback(info[6].As<v8::Function>());
 		}else{
-			max_element_cnt	= info[6]->NumberValue();
+			max_element_cnt	= Nan::To<int>(info[6]).ToChecked();
 		}
 	}
 	if(7 < info.Length()){
@@ -1226,7 +1226,7 @@ NAN_METHOD(K2hNode::Open)
 			}
 			callback		= new Nan::Callback(info[7].As<v8::Function>());
 		}else{
-			pagesize		= info[7]->NumberValue();
+			pagesize		= Nan::To<int>(info[7]).ToChecked();
 		}
 	}
 	if(8 < info.Length()){
@@ -1306,7 +1306,7 @@ NAN_METHOD(K2hNode::OpenRW)
 			}
 			callback		= new Nan::Callback(info[1].As<v8::Function>());
 		}else{
-			isfullmapping	= info[1]->BooleanValue();
+			isfullmapping	= Nan::To<bool>(info[1]).ToChecked();
 		}
 	}
 	if(2 < info.Length()){
@@ -1317,7 +1317,7 @@ NAN_METHOD(K2hNode::OpenRW)
 			}
 			callback		= new Nan::Callback(info[2].As<v8::Function>());
 		}else{
-			mask_bitcnt		= info[2]->NumberValue();
+			mask_bitcnt		= Nan::To<int>(info[2]).ToChecked();
 		}
 	}
 	if(3 < info.Length()){
@@ -1328,7 +1328,7 @@ NAN_METHOD(K2hNode::OpenRW)
 			}
 			callback		= new Nan::Callback(info[3].As<v8::Function>());
 		}else{
-			cmask_bitcnt	= info[3]->NumberValue();
+			cmask_bitcnt	= Nan::To<int>(info[3]).ToChecked();
 		}
 	}
 	if(4 < info.Length()){
@@ -1339,7 +1339,7 @@ NAN_METHOD(K2hNode::OpenRW)
 			}
 			callback		= new Nan::Callback(info[4].As<v8::Function>());
 		}else{
-			max_element_cnt	= info[4]->NumberValue();
+			max_element_cnt	= Nan::To<int>(info[4]).ToChecked();
 		}
 	}
 	if(5 < info.Length()){
@@ -1350,7 +1350,7 @@ NAN_METHOD(K2hNode::OpenRW)
 			}
 			callback		= new Nan::Callback(info[5].As<v8::Function>());
 		}else{
-			pagesize		= info[5]->NumberValue();
+			pagesize		= Nan::To<int>(info[5]).ToChecked();
 		}
 	}
 	if(6 < info.Length()){
@@ -1430,7 +1430,7 @@ NAN_METHOD(K2hNode::OpenRO)
 			}
 			callback		= new Nan::Callback(info[1].As<v8::Function>());
 		}else{
-			isfullmapping	= info[1]->BooleanValue();
+			isfullmapping	= Nan::To<bool>(info[1]).ToChecked();
 		}
 	}
 	if(2 < info.Length()){
@@ -1441,7 +1441,7 @@ NAN_METHOD(K2hNode::OpenRO)
 			}
 			callback		= new Nan::Callback(info[2].As<v8::Function>());
 		}else{
-			mask_bitcnt		= info[2]->NumberValue();
+			mask_bitcnt		= Nan::To<int>(info[2]).ToChecked();
 		}
 	}
 	if(3 < info.Length()){
@@ -1452,7 +1452,7 @@ NAN_METHOD(K2hNode::OpenRO)
 			}
 			callback		= new Nan::Callback(info[3].As<v8::Function>());
 		}else{
-			cmask_bitcnt	= info[3]->NumberValue();
+			cmask_bitcnt	= Nan::To<int>(info[3]).ToChecked();
 		}
 	}
 	if(4 < info.Length()){
@@ -1463,7 +1463,7 @@ NAN_METHOD(K2hNode::OpenRO)
 			}
 			callback		= new Nan::Callback(info[4].As<v8::Function>());
 		}else{
-			max_element_cnt	= info[4]->NumberValue();
+			max_element_cnt	= Nan::To<int>(info[4]).ToChecked();
 		}
 	}
 	if(5 < info.Length()){
@@ -1474,7 +1474,7 @@ NAN_METHOD(K2hNode::OpenRO)
 			}
 			callback		= new Nan::Callback(info[5].As<v8::Function>());
 		}else{
-			pagesize		= info[5]->NumberValue();
+			pagesize		= Nan::To<int>(info[5]).ToChecked();
 		}
 	}
 	if(6 < info.Length()){
@@ -1555,7 +1555,7 @@ NAN_METHOD(K2hNode::OpenTempfile)
 			}
 			callback		= new Nan::Callback(info[1].As<v8::Function>());
 		}else{
-			isfullmapping	= info[1]->BooleanValue();
+			isfullmapping	= Nan::To<bool>(info[1]).ToChecked();
 		}
 	}
 	if(2 < info.Length()){
@@ -1566,7 +1566,7 @@ NAN_METHOD(K2hNode::OpenTempfile)
 			}
 			callback		= new Nan::Callback(info[2].As<v8::Function>());
 		}else{
-			mask_bitcnt		= info[2]->NumberValue();
+			mask_bitcnt		= Nan::To<int>(info[2]).ToChecked();
 		}
 	}
 	if(3 < info.Length()){
@@ -1577,7 +1577,7 @@ NAN_METHOD(K2hNode::OpenTempfile)
 			}
 			callback		= new Nan::Callback(info[3].As<v8::Function>());
 		}else{
-			cmask_bitcnt	= info[3]->NumberValue();
+			cmask_bitcnt	= Nan::To<int>(info[3]).ToChecked();
 		}
 	}
 	if(4 < info.Length()){
@@ -1588,7 +1588,7 @@ NAN_METHOD(K2hNode::OpenTempfile)
 			}
 			callback		= new Nan::Callback(info[4].As<v8::Function>());
 		}else{
-			max_element_cnt	= info[4]->NumberValue();
+			max_element_cnt	= Nan::To<int>(info[4]).ToChecked();
 		}
 	}
 	if(5 < info.Length()){
@@ -1599,7 +1599,7 @@ NAN_METHOD(K2hNode::OpenTempfile)
 			}
 			callback		= new Nan::Callback(info[5].As<v8::Function>());
 		}else{
-			pagesize		= info[5]->NumberValue();
+			pagesize		= Nan::To<int>(info[5]).ToChecked();
 		}
 	}
 	if(6 < info.Length()){
@@ -1667,7 +1667,7 @@ NAN_METHOD(K2hNode::OpenMem)
 			}
 			callback		= new Nan::Callback(info[1].As<v8::Function>());
 		}else{
-			mask_bitcnt		= info[1]->NumberValue();
+			mask_bitcnt		= Nan::To<int>(info[1]).ToChecked();
 		}
 	}
 	if(2 < info.Length()){
@@ -1678,7 +1678,7 @@ NAN_METHOD(K2hNode::OpenMem)
 			}
 			callback		= new Nan::Callback(info[2].As<v8::Function>());
 		}else{
-			cmask_bitcnt	= info[2]->NumberValue();
+			cmask_bitcnt	= Nan::To<int>(info[2]).ToChecked();
 		}
 	}
 	if(3 < info.Length()){
@@ -1689,7 +1689,7 @@ NAN_METHOD(K2hNode::OpenMem)
 			}
 			callback		= new Nan::Callback(info[3].As<v8::Function>());
 		}else{
-			max_element_cnt	= info[3]->NumberValue();
+			max_element_cnt	= Nan::To<int>(info[3]).ToChecked();
 		}
 	}
 	if(4 < info.Length()){
@@ -1700,7 +1700,7 @@ NAN_METHOD(K2hNode::OpenMem)
 			}
 			callback		= new Nan::Callback(info[4].As<v8::Function>());
 		}else{
-			pagesize		= info[4]->NumberValue();
+			pagesize		= Nan::To<int>(info[4]).ToChecked();
 		}
 	}
 	if(5 < info.Length()){
@@ -1846,7 +1846,7 @@ NAN_METHOD(K2hNode::GetValue)
 			}
 			callback		= new Nan::Callback(info[2].As<v8::Function>());
 		}else if(info[2]->IsBoolean()){
-			attrchk			= info[2]->BooleanValue();
+			attrchk			= Nan::To<bool>(info[2]).ToChecked();
 		}else{
 			Nan::ThrowSyntaxError("Third parameter must be boolean.");
 			return;
@@ -1972,7 +1972,7 @@ NAN_METHOD(K2hNode::GetSubkeys)
 		Local<Array>	retarr	= Nan::New<Array>();
 		int				pos		= 0 ;
 		for(strarr_t::const_iterator iter = strarr.begin(); iter != strarr.end(); ++iter, ++pos){
-			retarr->Set(pos, Nan::New<String>(iter->c_str()).ToLocalChecked());
+			Nan::Set(retarr, pos, Nan::New<String>(iter->c_str()).ToLocalChecked());
 		}
 		delete sk;
 
@@ -2084,7 +2084,7 @@ NAN_METHOD(K2hNode::SetValue)
 			}
 			callback			= new Nan::Callback(info[4].As<v8::Function>());
 		}else if(info[4]->IsInt32()){
-			int	nexpire			= info[4]->Int32Value();
+			int	nexpire			= Nan::To<int32_t>(info[4]).ToChecked();
 			expire				= static_cast<time_t>(nexpire);
 		}else{
 			Nan::ThrowSyntaxError("Expire parameter must be int32 value.");
@@ -2249,7 +2249,7 @@ NAN_METHOD(K2hNode::AddSubkeys)
 		for(int pos = 0; pos < static_cast<int>(inSubkeys->Length()); ++pos){
 			string		strkey;
 			{
-				Nan::Utf8String	buf(inSubkeys->Get(pos));
+				Nan::Utf8String	buf(Nan::Get(inSubkeys, pos).ToLocalChecked());
 				strkey = std::string(*buf);
 			}
 			if(Subkeys.end() == Subkeys.insert(strkey.c_str())){
@@ -2439,7 +2439,7 @@ NAN_METHOD(K2hNode::PrintState)
 			obj->_k2hshm.PrintState()
 		));
 	}else{
-		int		fd = info[0]->IsInt32() ? info[0]->Int32Value() : -1;
+		int		fd = info[0]->IsInt32() ? Nan::To<int32_t>(info[0]).ToChecked() : -1;
 		FILE*	fp = (-1 == fd ? stdout : fdopen(fd, "a"));
 		if(!fp){
 			Nan::ThrowError("could not open output stream.");
@@ -2470,7 +2470,7 @@ NAN_METHOD(K2hNode::PrintState)
 
 NAN_METHOD(K2hNode::PrintVersion)
 {
-	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? info[0]->Int32Value() : -1;
+	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? Nan::To<int32_t>(info[0]).ToChecked() : -1;
 	FILE*		fp	= (-1 == fd ? stdout : fdopen(fd, "a"));
 	if(!fp){
 		Nan::ThrowError("could not open output stream.");
@@ -2502,7 +2502,7 @@ NAN_METHOD(K2hNode::DumpHead)
 {
 	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
 
-	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? info[0]->Int32Value() : -1;
+	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? Nan::To<int32_t>(info[0]).ToChecked() : -1;
 	FILE*		fp	= (-1 == fd ? stdout : fdopen(fd, "a"));
 	if(!fp){
 		Nan::ThrowError("could not open output stream.");
@@ -2539,7 +2539,7 @@ NAN_METHOD(K2hNode::DumpKeytable)
 {
 	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
 
-	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? info[0]->Int32Value() : -1;
+	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? Nan::To<int32_t>(info[0]).ToChecked() : -1;
 	FILE*		fp	= (-1 == fd ? stdout : fdopen(fd, "a"));
 	if(!fp){
 		Nan::ThrowError("could not open output stream.");
@@ -2576,7 +2576,7 @@ NAN_METHOD(K2hNode::DumpFullKeytable)
 {
 	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
 
-	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? info[0]->Int32Value() : -1;
+	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? Nan::To<int32_t>(info[0]).ToChecked() : -1;
 	FILE*		fp	= (-1 == fd ? stdout : fdopen(fd, "a"));
 	if(!fp){
 		Nan::ThrowError("could not open output stream.");
@@ -2613,7 +2613,7 @@ NAN_METHOD(K2hNode::DumpElementtable)
 {
 	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
 
-	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? info[0]->Int32Value() : -1;
+	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? Nan::To<int32_t>(info[0]).ToChecked() : -1;
 	FILE*		fp	= (-1 == fd ? stdout : fdopen(fd, "a"));
 	if(!fp){
 		Nan::ThrowError("could not open output stream.");
@@ -2650,7 +2650,7 @@ NAN_METHOD(K2hNode::DumpFull)
 {
 	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
 
-	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? info[0]->Int32Value() : -1;
+	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? Nan::To<int32_t>(info[0]).ToChecked() : -1;
 	FILE*		fp	= (-1 == fd ? stdout : fdopen(fd, "a"));
 	if(!fp){
 		Nan::ThrowError("could not open output stream.");
@@ -2709,12 +2709,12 @@ NAN_METHOD(K2hNode::Transaction)
 		return;
 	}
 
-	bool	enable = info[0]->BooleanValue();
+	bool	enable = Nan::To<bool>(info[0]).ToChecked();
 	if(enable){
 		std::string	transfile;
 		std::string	prefix;
 		std::string	param;
-		int			expire = (info.Length() < 5 || !info[4]->IsInt32()) ? 0	: info[4]->Int32Value();
+		int			expire = (info.Length() < 5 || !info[4]->IsInt32()) ? 0	: Nan::To<int32_t>(info[4]).ToChecked();
 
 		if(2 <= info.Length()){
 			Nan::Utf8String	buf(info[1]);
@@ -2773,7 +2773,7 @@ NAN_METHOD(K2hNode::EnableTransaction)
 	std::string	transfile;
 	std::string	prefix;
 	std::string	param;
-	int			expire = (info.Length() < 4 || !info[4]->IsInt32()) ? 0	: info[3]->Int32Value();
+	int			expire = (info.Length() < 4 || !info[4]->IsInt32()) ? 0	: Nan::To<int32_t>(info[3]).ToChecked();
 
 	if(1 <= info.Length()){
 		Nan::Utf8String	buf(info[0]);
@@ -2871,7 +2871,7 @@ NAN_METHOD(K2hNode::SetTransactionThreadPool)
 	}
 
 	info.GetReturnValue().Set(Nan::New(
-		obj->_k2hshm.SetTransThreadPool(info[0]->NumberValue())
+		obj->_k2hshm.SetTransThreadPool(Nan::To<int>(info[0]).ToChecked())
 	));
 }
 
@@ -2925,7 +2925,7 @@ NAN_METHOD(K2hNode::LoadArchive)
 			}
 			callback			= new Nan::Callback(info[1].As<v8::Function>());
 		}else if(info[1]->IsBoolean()){
-			errskip				= info[1]->BooleanValue();
+			errskip				= Nan::To<bool>(info[1]).ToChecked();
 		}else{
 			Nan::ThrowSyntaxError("Second parameter must be boolean.");
 			return;
@@ -2998,7 +2998,7 @@ NAN_METHOD(K2hNode::PutArchive)
 			}
 			callback			= new Nan::Callback(info[1].As<v8::Function>());
 		}else if(info[1]->IsBoolean()){
-			errskip				= info[1]->BooleanValue();
+			errskip				= Nan::To<bool>(info[1]).ToChecked();
 		}else{
 			Nan::ThrowSyntaxError("Second parameter must be boolean.");
 			return;
@@ -3051,9 +3051,8 @@ NAN_METHOD(K2hNode::getQueue)
 
 	K2hQueue::Init();
 	Local<Object>	retobj	= K2hQueue::GetInstance(info);
-	K2hQueue*		objq	= Nan::ObjectWrap::Unwrap<K2hQueue>(retobj->ToObject());
-
-	bool			is_fifo	= info.Length() < 1 ? true : info[0]->BooleanValue();
+	K2hQueue*		objq	= Nan::ObjectWrap::Unwrap<K2hQueue>(retobj->ToObject(Nan::GetCurrentContext()).ToLocalChecked());
+	bool			is_fifo	= info.Length() < 1 ? true : Nan::To<bool>(info[0]).ToChecked();
 	std::string		prefix;
 	if(2 <= info.Length()){
 		Nan::Utf8String	buf(info[1]);
@@ -3094,10 +3093,8 @@ NAN_METHOD(K2hNode::getKeyQueue)
 
 	K2hKeyQueue::Init();
 	Local<Object>	retobj	= K2hKeyQueue::GetInstance(info);
-	K2hKeyQueue*	objq	= Nan::ObjectWrap::Unwrap<K2hKeyQueue>(retobj->ToObject());
-
-
-	bool			is_fifo	= info.Length() < 1 ? true : info[0]->BooleanValue();
+	K2hKeyQueue*	objq	= Nan::ObjectWrap::Unwrap<K2hKeyQueue>(retobj->ToObject(Nan::GetCurrentContext()).ToLocalChecked());
+	bool			is_fifo	= info.Length() < 1 ? true : Nan::To<bool>(info[0]).ToChecked();
 	std::string		prefix;
 	if(2 <= info.Length()){
 		Nan::Utf8String	buf(info[1]);
@@ -3138,18 +3135,19 @@ NAN_METHOD(K2hNode::SetCommonAttribute)
 
 	const bool	istrue		= true;
 	const bool	isfalse		= false;
-	const bool* pismtime	= (info.Length() < 1 && !info[0]->IsInt32()) ?		NULL	:
-								K2H_VAL_ATTR_ENABLE == info[0]->Int32Value() ?	&istrue	:
-								K2H_VAL_ATTR_DISABLE == info[0]->Int32Value() ?	&isfalse: NULL;
-	const bool* pishistory	= (info.Length() < 2 && !info[1]->IsInt32()) ?		NULL	:
-								K2H_VAL_ATTR_ENABLE == info[1]->Int32Value() ?	&istrue	:
-								K2H_VAL_ATTR_DISABLE == info[1]->Int32Value() ?	&isfalse: NULL;
-	const bool* pisencrypt	= (info.Length() < 3 && !info[2]->IsInt32()) ?		NULL	:
-								K2H_VAL_ATTR_ENABLE == info[2]->Int32Value() ?	&istrue	:
-								K2H_VAL_ATTR_DISABLE == info[2]->Int32Value() ?	&isfalse: NULL;
-	bool		is_expire	= (info.Length() < 5 && !info[4]->IsInt32()) ?		false	:
-								K2H_VAL_ATTR_ENABLE == info[4]->Int32Value() ?	true	:
-								K2H_VAL_ATTR_DISABLE == info[4]->Int32Value() ?	false	: false;
+	const bool* pismtime	= (info.Length() < 1 && !info[0]->IsInt32())						? NULL		:
+								K2H_VAL_ATTR_ENABLE == Nan::To<int32_t>(info[0]).ToChecked()	? &istrue	:
+								K2H_VAL_ATTR_DISABLE == Nan::To<int32_t>(info[0]).ToChecked()	? &isfalse	: NULL;
+	const bool* pishistory	= (info.Length() < 2 && !info[1]->IsInt32())						? NULL		:
+								K2H_VAL_ATTR_ENABLE == Nan::To<int32_t>(info[1]).ToChecked()	? &istrue	:
+								K2H_VAL_ATTR_DISABLE == Nan::To<int32_t>(info[1]).ToChecked()	? &isfalse	: NULL;
+	const bool* pisencrypt	= (info.Length() < 3 && !info[2]->IsInt32())						? NULL		:
+								K2H_VAL_ATTR_ENABLE == Nan::To<int32_t>(info[2]).ToChecked()	? &istrue	:
+								K2H_VAL_ATTR_DISABLE == Nan::To<int32_t>(info[2]).ToChecked()	? &isfalse	: NULL;
+	bool		is_expire	= (info.Length() < 5 && !info[4]->IsInt32())						? false		:
+								K2H_VAL_ATTR_ENABLE == Nan::To<int32_t>(info[4]).ToChecked()	? true		:
+								K2H_VAL_ATTR_DISABLE == Nan::To<int32_t>(info[4]).ToChecked()	? false		: false;
+
 	std::string	pass;
 	if(4 <= info.Length()){
 		Nan::Utf8String	buf(info[3]);
@@ -3158,7 +3156,7 @@ NAN_METHOD(K2hNode::SetCommonAttribute)
 	time_t		expire		= 0;
 	time_t*		pexpire		= NULL;
 	if(is_expire && 6 <= info.Length() && info[5]->IsNumber()){
-		expire	= reinterpret_cast<time_t>(info[5]->IntegerValue());
+		expire	= reinterpret_cast<time_t>(info[5]->IntegerValue(Nan::GetCurrentContext()).ToChecked());
 		pexpire	= &expire;
 	}
 	info.GetReturnValue().Set(Nan::New(
@@ -3232,7 +3230,7 @@ NAN_METHOD(K2hNode::AddAttrCryptPass)
 		return;
 	}
 	Nan::Utf8String	libfile(info[0]);
-	bool			is_default_encrypt = (2 <= info.Length() && true == info[1]->BooleanValue());
+	bool			is_default_encrypt = (2 <= info.Length() && true == Nan::To<bool>(info[1]).ToChecked());
 
 	info.GetReturnValue().Set(Nan::New(
 		obj->_k2hshm.AddAttrCryptPass(*libfile, is_default_encrypt)
@@ -3253,7 +3251,7 @@ NAN_METHOD(K2hNode::GetAttrVersionInfos)
 {
 	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
 
-	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? info[0]->Int32Value() : -1;
+	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? Nan::To<int32_t>(info[0]).ToChecked() : -1;
 	FILE*		fp	= (-1 == fd ? stdout : fdopen(fd, "a"));
 	if(!fp){
 		Nan::ThrowError("could not open output stream.");
@@ -3291,7 +3289,7 @@ NAN_METHOD(K2hNode::GetAttrInfos)
 {
 	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
 
-	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? info[0]->Int32Value() : -1;
+	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? Nan::To<int32_t>(info[0]).ToChecked() : -1;
 	FILE*		fp	= (-1 == fd ? stdout : fdopen(fd, "a"));
 	if(!fp){
 		Nan::ThrowError("could not open output stream.");
@@ -3369,7 +3367,7 @@ NAN_METHOD(K2hNode::GetAttrs)
 			if(0UL == iter->keylength || !iter->pkey){
 				continue;
 			}
-			retarr->Set(pos, Nan::New<String>(reinterpret_cast<const char*>(iter->pkey)).ToLocalChecked());
+			Nan::Set(retarr, pos, Nan::New<String>(reinterpret_cast<const char*>(iter->pkey)).ToLocalChecked());
 		}
 		delete attrs;
 
@@ -3552,7 +3550,10 @@ NAN_METHOD(K2hNode::AddAttr)
 //@}
 
 /*
- * VIM modelines
- *
- * vim:set ts=4 fenc=utf-8:
+ * Local variables:
+ * tab-width: 4
+ * c-basic-offset: 4
+ * End:
+ * vim600: expandtab sw=4 ts=4 fdm=marker
+ * vim<600: expandtab sw=4 ts=4
  */
