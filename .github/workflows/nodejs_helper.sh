@@ -209,7 +209,7 @@ else
 		echo "[ERROR] ${PRGNAME} : \"--nodejstype(-node)\" option specify with Node.js version(ex, 10/10.x/10.0.0/...)."
 		exit 1
 	fi
-	if [ $1 -le 0 ]; then
+	if [ ${NODE_MAJOR_VERSION} -le 0 ]; then
 		echo "[ERROR] ${PRGNAME} : \"--nodejstype(-node)\" option specify with Node.js version(ex, 10/10.x/10.0.0/...)."
 		exit 1
 	fi
@@ -260,6 +260,30 @@ if [ "X${GITHUB_REF}" != "X" ]; then
 fi
 
 #
+# Set variables for packagecloud.io
+#
+if [ "X${OPT_USE_PC_REPO}" = "Xfalse" ]; then
+	USE_PC_REPO=0
+else
+	USE_PC_REPO=1
+fi
+if [ "X${OPT_NPM_TOKEN}" != "X" ]; then
+	export NPM_TOKEN=${OPT_NPM_TOKEN}
+else
+	NPM_TOKEN=
+fi
+if [ "X${OPT_PC_OWNER}" != "X" ]; then
+	PC_OWNER=${OPT_PC_OWNER}
+else
+	PC_OWNER="antpickax"
+fi
+if [ "X${OPT_PC_DOWNLOAD_REPO}" != "X" ]; then
+	PC_DOWNLOAD_REPO=${OPT_PC_DOWNLOAD_REPO}
+else
+	PC_DOWNLOAD_REPO="stable"
+fi
+
+#
 # Check whether to publish
 #
 IS_PUBLISHER=0
@@ -291,30 +315,6 @@ else
 		fi
 		PUBLISH_REQUESTED=1
 	fi
-fi
-
-#
-# Set variables for packagecloud.io
-#
-if [ "X${OPT_USE_PC_REPO}" = "Xfalse" ]; then
-	USE_PC_REPO=0
-else
-	USE_PC_REPO=1
-fi
-if [ "X${OPT_NPM_TOKEN}" != "X" ]; then
-	export NPM_TOKEN=${OPT_NPM_TOKEN}
-else
-	NPM_TOKEN=
-fi
-if [ "X${OPT_PC_OWNER}" != "X" ]; then
-	PC_OWNER=${OPT_PC_OWNER}
-else
-	PC_OWNER="antpickax"
-fi
-if [ "X${OPT_PC_DOWNLOAD_REPO}" != "X" ]; then
-	PC_DOWNLOAD_REPO=${OPT_PC_DOWNLOAD_REPO}
-else
-	PC_DOWNLOAD_REPO="stable"
 fi
 
 #
