@@ -9,11 +9,11 @@
   },
   "dependencies": {
     "bindings": "^1.5.0",
-    "nan": "^2.15.0"
+    "nan": "^2.16.0"
   },
   "devDependencies": {
-    "chai": "^4.3.4",
-    "mocha": "^8.4.0",
+    "chai": "^4.3.6",
+    "mocha": "^10.0.0",
     "publish-please": "^5.5.2"
   },
   "scripts": {
@@ -25,10 +25,10 @@
     "build:after": "echo \"Build - Succeed\"",
     "install": "npm run build",
     "test": "npm run test:all",
-    "test:all": "echo \"Test - All\" && if [ -d test_* ]; then TEST_DIR=`ls -1 | grep test_ | head -1`; else TEST_DIR=test; fi; ${TEST_DIR}/run_test.sh && echo \"Finished\"",
-    "test:k2hash": "echo \"Test - k2hash\" && if [ -d test_* ]; then TEST_DIR=`ls -1 | grep test_ | head -1`; else TEST_DIR=test; fi; ${TEST_DIR}/run_test.sh k2hash && echo \"Finished\"",
-    "test:k2hqueue": "echo \"Test - k2hqueue\" && if [ -d test_* ]; then TEST_DIR=`ls -1 | grep test_ | head -1`; else TEST_DIR=test; fi; ${TEST_DIR}/run_test.sh k2hqueue && echo \"Finished\"",
-    "test:k2hkeyqueue": "echo \"Test - k2hkeyqueue\" && if [ -d test_* ]; then TEST_DIR=`ls -1 | grep test_ | head -1`; else TEST_DIR=test; fi; ${TEST_DIR}/run_test.sh k2hkeyqueue && echo \"Finished\"",
+    "test:all": "echo \"Test - All\" && test/run_test.sh && echo \"Finished\"",
+    "test:k2hash": "echo \"Test - k2hash\" && test/run_test.sh k2hash && echo \"Finished\"",
+    "test:k2hqueue": "echo \"Test - k2hqueue\" && test/run_test.sh k2hqueue && echo \"Finished\"",
+    "test:k2hkeyqueue": "echo \"Test - k2hkeyqueue\" && test/run_test.sh k2hkeyqueue && echo \"Finished\"",
     "publish-please": "publish-please",
     "prepublishOnly": "publish-please guard"
   },
