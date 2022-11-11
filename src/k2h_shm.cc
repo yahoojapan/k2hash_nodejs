@@ -240,7 +240,7 @@ NAN_METHOD(K2hNode::New)
 		info.GetReturnValue().Set(info.This()); 
 	}else{ 
 		// Invoked as plain function K2hNode(), turn into construct call. 
-	    const int		argc		= 1;
+		const int		argc		= 1;
 		Local<Value>	argv[argc]	= {info[0]}; 
 		Local<Function>	cons		= Nan::New<Function>(constructor); 
 		info.GetReturnValue().Set(Nan::NewInstance(cons, argc, argv).ToLocalChecked()); 
@@ -1509,7 +1509,7 @@ NAN_METHOD(K2hNode::OpenRO)
  *			The file is temporary, it means the file is removed automatically when
  *			close it.
  *			If the callback function is specified, or on callback handles for this,
- *  		this method works asynchronization and calls callback function at finishing.
+ *			this method works asynchronization and calls callback function at finishing.
  *
  * @param[in] filename		Specify K2HASH file path
  * @param[in] fullmap		Specify true for full memory mapping. false for mapping only
@@ -1630,7 +1630,7 @@ NAN_METHOD(K2hNode::OpenTempfile)
  * )
  * @brief	Open(create) K2HASH data on memory.
  *			If the callback function is specified, or on callback handles for this,
- *  		this method works asynchronization and calls callback function at finishing.
+ *			this method works asynchronization and calls callback function at finishing.
  *
  * @param[in] maskbitcnt	Specify initial mask bit count(must over 2).
  *							If opens existing K2HASH file, this value is ignored and
@@ -1728,7 +1728,7 @@ NAN_METHOD(K2hNode::OpenMem)
  * @brief	Close(detach) the K2HASH file(memory)
  *
  *	If the callback function is specified, or on callback handles for this,
- *  this method works asynchronization and calls callback function at finishing.
+ *	this method works asynchronization and calls callback function at finishing.
  *
  * @param[in] cbfunc	callback function.
  *
@@ -1780,7 +1780,7 @@ NAN_METHOD(K2hNode::Close)
  *			If the subkey is specified, returns the value for subkey.
  *			Then if the key does not have subkey, any value is returned.
  *			If the callback function is specified, or on callback handles for this,
- *  		this method works asynchronization and calls callback function at finishing.
+ *			this method works asynchronization and calls callback function at finishing.
  *
  * @param[in] key		Specify the key name.
  * @param[in] subkey	Specify the subkey name when you want to get value for it.
@@ -1920,7 +1920,7 @@ NAN_METHOD(K2hNode::GetValue)
  * @brief	Get subkey list for key.
  *
  *	If the callback function is specified, or on callback handles for this,
- *  this method works asynchronization and calls callback function at finishing.
+ *	this method works asynchronization and calls callback function at finishing.
  *
  * @param[in] key		Specify the key name.
  * @param[in] cbfunc	callback function.
@@ -1998,7 +1998,7 @@ NAN_METHOD(K2hNode::GetSubkeys)
  *	the value is set to new subkey. Then the subkey is existed, the subkey's
  *	value is over write.
  *	If the callback function is specified, or on callback handles for this,
- *  this method works asynchronization and calls callback function at finishing.
+ *	this method works asynchronization and calls callback function at finishing.
  *
  * @param[in] key		Specify the key name
  * @param[in] value		Specify the value
@@ -2127,7 +2127,7 @@ NAN_METHOD(K2hNode::SetValue)
  *
  *	If the value is specified, new subkey has it.
  *	If the callback function is specified, or on callback handles for this,
- *  this method works asynchronization and calls callback function at finishing.
+ *	this method works asynchronization and calls callback function at finishing.
  *
  * @param[in] key		Specify the key name
  * @param[in] subkey	Specify added new subkey name
@@ -2210,7 +2210,7 @@ NAN_METHOD(K2hNode::AddSubkey)
  *	Take care for that the replaced old subkey list, the old subkey is not removed from
  *	K2HASH, it is removed only the key's subkey list.
  *	If the callback function is specified, or on callback handles for this,
- *  this method works asynchronization and calls callback function at finishing.
+ *	this method works asynchronization and calls callback function at finishing.
  *
  * @param[in] key		Specify the key name
  * @param[in] subkeys	Specify the subkey list
@@ -2247,12 +2247,12 @@ NAN_METHOD(K2hNode::AddSubkeys)
 		Local<Array>	inSubkeys= Local<Array>::Cast(info[1]);
 		K2HSubKeys		Subkeys;
 		for(int pos = 0; pos < static_cast<int>(inSubkeys->Length()); ++pos){
-			string		strkey;
+			string		tmpkey;
 			{
 				Nan::Utf8String	buf(Nan::Get(inSubkeys, pos).ToLocalChecked());
-				strkey = std::string(*buf);
+				tmpkey = std::string(*buf);
 			}
-			if(Subkeys.end() == Subkeys.insert(strkey.c_str())){
+			if(Subkeys.end() == Subkeys.insert(tmpkey.c_str())){
 				// failed to set subkey
 				info.GetReturnValue().Set(Nan::False());
 				return;
@@ -2300,7 +2300,7 @@ NAN_METHOD(K2hNode::AddSubkeys)
  *	If the subkey name is specified, the subkey is removed from the key's subkey
  *	list and the subkey is removed from K2HASH.
  *	If the callback function is specified, or on callback handles for this,
- *  this method works asynchronization and calls callback function at finishing.
+ *	this method works asynchronization and calls callback function at finishing.
  *
  * @param[in] key		Specify the key name
  * @param[in] subkey	Specify the subkey name
@@ -2374,7 +2374,7 @@ NAN_METHOD(K2hNode::Remove)
  *
  *	If the key has subkeys, all of the subkeys is removed.
  *	If the callback function is specified, or on callback handles for this,
- *  this method works asynchronization and calls callback function at finishing.
+ *	this method works asynchronization and calls callback function at finishing.
  *
  * @param[in] key		Specify the key name
  * @param[in] cbfunc	callback function.
@@ -2887,7 +2887,7 @@ NAN_METHOD(K2hNode::SetTransactionThreadPool)
  *	If there is same key name in archive file, the key is over wrote.
  *	The archive file is made by PutArchive() function.
  *	If the callback function is specified, or on callback handles for this,
- *  this method works asynchronization and calls callback function at finishing.
+ *	this method works asynchronization and calls callback function at finishing.
  *
  * @param[in] filename	Specify the archive file path
  * @param[in] errskip	If true is specified, this function does not stop when something
@@ -2960,7 +2960,7 @@ NAN_METHOD(K2hNode::LoadArchive)
  *
  *	The archive file which is made by this method can be loaded by LoadArchive()
  *	If the callback function is specified, or on callback handles for this,
- *  this method works asynchronization and calls callback function at finishing.
+ *	this method works asynchronization and calls callback function at finishing.
  *
  * @param[in] filename	Specify the archive file path
  * @param[in] errskip	If true is specified, this function does not stop when something
@@ -3145,16 +3145,15 @@ NAN_METHOD(K2hNode::SetCommonAttribute)
 								K2H_VAL_ATTR_ENABLE == Nan::To<int32_t>(info[2]).ToChecked()	? &istrue	:
 								K2H_VAL_ATTR_DISABLE == Nan::To<int32_t>(info[2]).ToChecked()	? &isfalse	: NULL;
 	bool		is_expire	= (info.Length() < 5 && !info[4]->IsInt32())						? false		:
-								K2H_VAL_ATTR_ENABLE == Nan::To<int32_t>(info[4]).ToChecked()	? true		:
-								K2H_VAL_ATTR_DISABLE == Nan::To<int32_t>(info[4]).ToChecked()	? false		: false;
+								K2H_VAL_ATTR_ENABLE == Nan::To<int32_t>(info[4]).ToChecked()	? true		: false;
 
 	std::string	pass;
 	if(4 <= info.Length()){
 		Nan::Utf8String	buf(info[3]);
 		pass = std::string(*buf);
 	}
-	time_t		expire		= 0;
-	time_t*		pexpire		= NULL;
+	time_t		expire;
+	time_t*		pexpire = NULL;
 	if(is_expire && 6 <= info.Length() && info[5]->IsNumber()){
 		expire	= reinterpret_cast<time_t>(info[5]->IntegerValue(Nan::GetCurrentContext()).ToChecked());
 		pexpire	= &expire;
@@ -3315,7 +3314,7 @@ NAN_METHOD(K2hNode::GetAttrInfos)
  *
  * @brief	Get attribute keys
  *			If the callback function is specified, or on callback handles for this,
- *  		this method works asynchronization and calls callback function at finishing.
+ *			this method works asynchronization and calls callback function at finishing.
  *
  * @param[in] key	Specify the key name
  * @param[in] cbfunc	callback function.
@@ -3385,7 +3384,7 @@ NAN_METHOD(K2hNode::GetAttrs)
  *
  * @brief	Get value by attribute key
  *			If the callback function is specified, or on callback handles for this,
- *  		this method works asynchronization and calls callback function at finishing.
+ *			this method works asynchronization and calls callback function at finishing.
  *
  * @param[in] key		Specify the key name
  * @param[in] attrkey	Specify the attribute key name
@@ -3478,7 +3477,7 @@ NAN_METHOD(K2hNode::GetAttrValue)
  *
  * @brief	Add the attribute to the key
  *			If the callback function is specified, or on callback handles for this,
- *  		this method works asynchronization and calls callback function at finishing.
+ *			this method works asynchronization and calls callback function at finishing.
  *
  * @param[in] key		Specify the key name
  * @param[in] attrkey	Specify the attribute key name
@@ -3554,6 +3553,6 @@ NAN_METHOD(K2hNode::AddAttr)
  * tab-width: 4
  * c-basic-offset: 4
  * End:
- * vim600: expandtab sw=4 ts=4 fdm=marker
- * vim<600: expandtab sw=4 ts=4
+ * vim600: noexpandtab sw=4 ts=4 fdm=marker
+ * vim<600: noexpandtab sw=4 ts=4
  */

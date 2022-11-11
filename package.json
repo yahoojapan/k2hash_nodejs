@@ -13,8 +13,7 @@
   },
   "devDependencies": {
     "chai": "^4.3.6",
-    "mocha": "^10.0.0",
-    "publish-please": "^5.5.2"
+    "mocha": "^10.0.0"
   },
   "scripts": {
     "build": "npm run build:before && npm run build:configure && npm run build:rebuild && npm run build:linkdir && npm run build:after",
@@ -27,9 +26,7 @@
     "test:all": "echo \"Test - All\" && tests/test.sh && echo \"Finished\"",
     "test:k2hash": "echo \"Test - k2hash\" && tests/test.sh k2hash && echo \"Finished\"",
     "test:k2hqueue": "echo \"Test - k2hqueue\" && tests/test.sh k2hqueue && echo \"Finished\"",
-    "test:k2hkeyqueue": "echo \"Test - k2hkeyqueue\" && tests/test.sh k2hkeyqueue && echo \"Finished\"",
-    "publish-please": "publish-please",
-    "prepublishOnly": "publish-please guard"
+    "test:k2hkeyqueue": "echo \"Test - k2hkeyqueue\" && tests/test.sh k2hkeyqueue && echo \"Finished\""
   },
   "repository": {
     "type": "git",
