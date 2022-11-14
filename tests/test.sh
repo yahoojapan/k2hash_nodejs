@@ -166,25 +166,18 @@ K2HASH_NODE_PATH="${K2HASH_NODE_PATH}${BUILDDIR}"
 #==========================================================
 cd "${SRCTOP}" || exit 1
 
-# [NOTE] Check mocha path
-# old_internal_ci changed test tool from mocha to jenkins-mocha, then
-# probabry mocha path is changed.
-# So, check mocha path in node_modules.
+#
+# Check mocha path
 #
 if ! npm install mocha; then
 	echo "[ERROR] Could not install mocha."
 	exit 1
 fi
-
 if [ -f "${SRCTOP}"/node_modules/.bin/mocha ]; then
 	MOCHA_BIN="${SRCTOP}/node_modules/.bin/mocha"
-elif [ -f "${SRCTOP}"/node_modules/jenkins-mocha/node_modules/.bin/mocha ]; then
-	MOCHA_BIN="${SRCTOP}/node_modules/jenkins-mocha/node_modules/.bin/mocha"
 else
-	#
-	# Using default...
-	#
-	MOCHA_BIN="${SRCTOP}/node_modules/jenkins-mocha/node_modules/.bin/mocha"
+	echo "[ERROR] Not found mocha program"
+	exit 1
 fi
 
 if [ "${DEBUG_MODE}" = "INFO" ]; then
