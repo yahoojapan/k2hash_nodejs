@@ -7,15 +7,14 @@ k2hash nodejs addon library
 [![GitHub issues](https://img.shields.io/github/issues/yahoojapan/k2hash_nodejs.svg)](https://github.com/yahoojapan/k2hash_nodejs/issues)
 [![NPM packages](https://badge.fury.io/js/k2hash.svg)](https://badge.fury.io/js/k2hash)
 
-K2HASH addon library for Node.js.  
- - K2HASH - NoSQL Key Value Store(KVS) library by Yahoo! JAPAN
+K2HASH addon library for Node.js
 
 ### Overview
 K2HASH is NoSQL(key value store) library and tools for this library by Yahoo! JAPAN.  
 This addon library is for using K2HASH on nodejs.  
 
 By k2hash nodejs addon library, you can easily incorporate the functions and features of K2HASH into Node.js based programs.  
-For the features and functions of K2HASH, see the [k2hash documentation](https://k2hash.antpick.ax/).  
+For the features and functions of K2HASH, see the [k2hash nodejs documentation](https://nodejs.k2hash.antpick.ax/) and [k2hash documentation](https://k2hash.antpick.ax/).  
 
 ![k2HASH Node.js addon](https://nodejs.k2hash.antpick.ax/images/top_k2hash_nodejs.png)
 
