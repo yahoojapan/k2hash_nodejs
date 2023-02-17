@@ -1,7 +1,7 @@
 #
 # K2HASH
 #
-# Copyright 2015 Yahoo! JAPAN corporation.
+# Copyright 2015 Yahoo Japan Corporation.
 #
 # K2HASH is key-valuew store base libraries.
 # K2HASH is made for the purpose of the construction of
@@ -26,11 +26,11 @@
 		{
 			"target_name":	"k2hash",
 			"sources":		[
-				"src/k2hash.cc",
-				"src/k2h_shm.cc",
-				"src/k2h_queue.cc",
-				"src/k2h_keyqueue.cc",
-				"src/k2h_cbs.cc"
+				"k2hash.cc",
+				"k2h_shm.cc",
+				"k2h_queue.cc",
+				"k2h_keyqueue.cc",
+				"k2h_cbs.cc"
 			],
 			"cflags":		[
 				#
@@ -46,7 +46,13 @@
 				#
 				# For nodejs 12.x/..., it suppress warnings: "'deprecated' attribute directive ignored"
 				#
-				"-Wno-attributes"
+				"-Wno-attributes",
+				#
+				# nodejs/nan#807(https://github.com/nodejs/nan/issues/807#issuecomment-455750192)
+				# recommends using the "-Wno-cast-function-type" to silence deprecations warnings
+				# that appear with GCC 8.
+				#
+				"-Wno-cast-function-type"
 			],
 			"include_dirs":	[
 				"<!(node -e \"require('nan')\")"
@@ -58,9 +64,9 @@
 		{
 			"target_name":	"k2hqueue",
 			"sources":		[
-				"src/k2hqueue.cc",
-				"src/k2h_queue.cc",
-				"src/k2h_cbs.cc"
+				"k2hqueue.cc",
+				"k2h_queue.cc",
+				"k2h_cbs.cc"
 			],
 			"cflags":		[
 				#
@@ -76,7 +82,13 @@
 				#
 				# For nodejs 12.x/..., it suppress warnings: "'deprecated' attribute directive ignored"
 				#
-				"-Wno-attributes"
+				"-Wno-attributes",
+				#
+				# nodejs/nan#807(https://github.com/nodejs/nan/issues/807#issuecomment-455750192)
+				# recommends using the "-Wno-cast-function-type" to silence deprecations warnings
+				# that appear with GCC 8.
+				#
+				"-Wno-cast-function-type"
 			],
 			"include_dirs":	[
 				"<!(node -e \"require('nan')\")"
@@ -88,9 +100,9 @@
 		{
 			"target_name":	"k2hkeyqueue",
 			"sources":		[
-				"src/k2hkeyqueue.cc",
-				"src/k2h_keyqueue.cc",
-				"src/k2h_cbs.cc"
+				"k2hkeyqueue.cc",
+				"k2h_keyqueue.cc",
+				"k2h_cbs.cc"
 			],
 			"cflags":		[
 				#
@@ -106,7 +118,13 @@
 				#
 				# For nodejs 12.x/..., it suppress warnings: "'deprecated' attribute directive ignored"
 				#
-				"-Wno-attributes"
+				"-Wno-attributes",
+				#
+				# nodejs/nan#807(https://github.com/nodejs/nan/issues/807#issuecomment-455750192)
+				# recommends using the "-Wno-cast-function-type" to silence deprecations warnings
+				# that appear with GCC 8.
+				#
+				"-Wno-cast-function-type"
 			],
 			"include_dirs":	[
 				"<!(node -e \"require('nan')\")"
@@ -123,6 +141,6 @@
 # tab-width: 4
 # c-basic-offset: 4
 # End:
-# vim600: expandtab sw=4 ts=4 fdm=marker
-# vim<600: expandtab sw=4 ts=4
+# vim600: noexpandtab sw=4 ts=4 fdm=marker
+# vim<600: noexpandtab sw=4 ts=4
 #
