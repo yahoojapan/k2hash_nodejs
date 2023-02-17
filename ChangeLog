@@ -1,9 +1,10 @@
 k2hash (1.1.24) unstable; urgency=low
 
+  * Fixed scripts for package building and publishing - #40
   * Re-fixed nodejs_helper.sh for npm publish - #38
   * Fixed nodejs_helper.sh for npm publish - #36
 
- -- Takeshi Nakatani <ggtakec@gmail.com>  Fri, 17 Feb 2023 18:30:10 +0900
+ -- Takeshi Nakatani <ggtakec@gmail.com>  Fri, 17 Feb 2023 19:21:14 +0900
 
 k2hash (1.1.23) unstable; urgency=low
 
