@@ -53,7 +53,7 @@ INSTALLER_BIN=""
 INSTALL_QUIET_ARG=""
 
 IS_PUBLISHER=0
-PUBLISH_DOMAIN="registry.npmjs.org"
+PUBLISH_DOMAIN=""
 
 #---------------------------------------------------------------
 # Variables for each Node.js Major Version
