@@ -1,3 +1,20 @@
+k2hash (1.1.23) unstable; urgency=low
+
+  * Added build flags and removed unnecessary files - #34
+  * Updated header and footer in comment lines - #33
+  * Updated issue/pullrequest templates and README.md - #31
+  * Reviewed ShellCheck processing again - #30
+  * Reviewed ShellCheck processing and fixed bugs - #29
+  * Eliminated unnecessary copies in nodejs_helper.sh - #28
+  * Updated packages - #27
+  * Fixed test.sh for not using jenkins mocha that is no longer used - #26
+  * Updated github actions and nodejs version, and fixed bugs - #25
+  * Renamed the test directory to tests and run_test.sh to test.sh - #24
+  * Removed install entry from scripts in package.json file - #23
+  * Cleaned up package.json and updated related package versions - #22
+
+ -- Takeshi Nakatani <ggtakec@gmail.com>  Fri, 17 Feb 2023 13:03:40 +0900
+
 k2hash (1.1.22) unstable; urgency=low
 
   * Updated some npm packages, added .auditignore, etc - #20
