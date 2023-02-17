@@ -484,11 +484,20 @@ run_pre_publish()
 		PRNERR "PUBLISH_DOMAIN(=${PUBLISH_DOMAIN}) or CI_NPM_TOKEN(=${CI_NPM_TOKEN}) is empty."
 		return 1
 	fi
-	export NPM_TOKEN="${CI_NPM_TOKEN}"
 
-	if ! echo "//${PUBLISH_DOMAIN}/:_authToken=\${CI_NPM_TOKEN}" > "${HOME}"/.npmrc; then
-		PRNERR "Failed to run process before publish, could not create .npmrc"
-		return 1
+	# [NOTE]
+	# actions/setup-node@ uses following environments.
+	#
+	export NODE_AUTH_TOKEN="${CI_NPM_TOKEN}"
+
+	# [NOTE]
+	# If using actions/setup-node@, the following is unnecessary, but set it.
+	#
+	if [ -n "${HOME}" ]; then
+		if ! echo "//${PUBLISH_DOMAIN}/:_authToken=\${CI_NPM_TOKEN}" >> "${HOME}"/.npmrc; then
+			PRNERR "Failed to run process before publish, could not create .npmrc"
+			return 1
+		fi
 	fi
 	return 0
 }
