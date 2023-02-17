@@ -480,23 +480,27 @@ run_post_test()
 #
 run_pre_publish()
 {
-	if [ -z "${PUBLISH_DOMAIN}" ] || [ -z "${CI_NPM_TOKEN}" ]; then
-		PRNERR "PUBLISH_DOMAIN(=${PUBLISH_DOMAIN}) or CI_NPM_TOKEN(=${CI_NPM_TOKEN}) is empty."
-		return 1
-	fi
-
 	# [NOTE]
 	# actions/setup-node@ uses following environments.
 	#
-	export NODE_AUTH_TOKEN="${CI_NPM_TOKEN}"
+	if [ -n "${CI_NPM_TOKEN}" ]; then
+		export NODE_AUTH_TOKEN="${CI_NPM_TOKEN}"
+	fi
 
 	# [NOTE]
-	# If using actions/setup-node@, the following is unnecessary, but set it.
+	# If using actions/setup-node@, the following is unnecessary.
 	#
-	if [ -n "${HOME}" ]; then
-		if ! echo "//${PUBLISH_DOMAIN}/:_authToken=\${CI_NPM_TOKEN}" >> "${HOME}"/.npmrc; then
-			PRNERR "Failed to run process before publish, could not create .npmrc"
-			return 1
+	if [ -n "${PUBLISH_DOMAIN}" ]; then
+		if [ -z "${CI_NPM_TOKEN}" ]; then
+			if ! npm config set registry "https://${PUBLISH_DOMAIN}/"; then
+				PRNERR "Failed to set configuration for accessing registory(${PUBLISH_DOMAIN}) with https."
+				return 1
+			fi
+		elif [ -n "${HOME}" ]; then
+			if ! echo "//${PUBLISH_DOMAIN}/:_authToken=\${CI_NPM_TOKEN}" >> "${HOME}"/.npmrc; then
+				PRNERR "Failed to run process before publish, could not create .npmrc"
+				return 1
+			fi
 		fi
 	fi
 	return 0
