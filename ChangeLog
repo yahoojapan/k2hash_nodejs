@@ -1,3 +1,9 @@
+k2hash (1.1.25) unstable; urgency=low
+
+  * Fixed package.json for install command - #42
+
+ -- Takeshi Nakatani <ggtakec@gmail.com>  Mon, 20 Feb 2023 11:13:16 +0900
+
 k2hash (1.1.24) unstable; urgency=low
 
   * Fixed scripts for package building and publishing - #40
