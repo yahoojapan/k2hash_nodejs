@@ -1,3 +1,9 @@
+k2hash (1.1.30) unstable; urgency=low
+
+  * Removed .auditignore file - #53
+
+ -- Takeshi Nakatani <ggtakec@gmail.com>  Tue, 21 Nov 2023 14:52:40 +0900
+
 k2hash (1.1.29) unstable; urgency=low
 
   * Bumped up the version number
