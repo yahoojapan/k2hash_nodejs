@@ -1,3 +1,10 @@
+k2hash (1.1.31) unstable; urgency=low
+
+  * Updated dependencies - #56
+  * Updated github actions tools - #55
+
+ -- Takeshi Nakatani <ggtakec@gmail.com>  Wed, 13 Mar 2024 17:23:01 +0900
+
 k2hash (1.1.30) unstable; urgency=low
 
   * Removed .auditignore file - #53
