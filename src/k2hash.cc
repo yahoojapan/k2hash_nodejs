@@ -18,25 +18,39 @@
  * REVISION:
  */
 
+#include <napi.h>
 #include "k2h_shm.h"
-
-using namespace v8 ;
 
 //---------------------------------------------------------
 // k2hash node object
 //---------------------------------------------------------
-NAN_METHOD(CreateObject)
+// [NOTE]
+// The logic for receiving arguments when switching to N-API has been removed.
+// This is because the arguments were not used in the first place and did not
+// need to be defined.
+//
+Napi::Value CreateObject(const Napi::CallbackInfo& info)
 {
-	K2hNode::NewInstance(info);
+	Napi::Env env = info.Env();
+	return K2hNode::NewInstance(env);	// always no arguments.
 }
 
-void InitAll(Local<Object> exports, Local<Object> module)
+Napi::Object InitAll(Napi::Env env, Napi::Object exports)
 {
-	K2hNode::Init();
-	Nan::Set(module, Nan::New("exports").ToLocalChecked(), Nan::GetFunction(Nan::New<FunctionTemplate>(CreateObject)).ToLocalChecked());
+	// Class registration (creating a constructor)
+	K2hNode::Init(env, exports); // この中で constructor を作って Persistent に保存している想定
+
+	// Create a factory function that returns module.exports
+	Napi::Function createFn = Napi::Function::New(env, CreateObject, "k2hash");
+
+	// Allow to use "require('k2hash').K2hNode"
+	createFn.Set("K2hNode", K2hNode::constructor.Value());
+
+	// Replace module.exports with this function (does not break existing "require('k2hash')()".)
+	return createFn;
 }
 
-NODE_MODULE(k2hash , InitAll)
+NODE_API_MODULE(k2hash, InitAll)
 
 /*
  * Local variables:

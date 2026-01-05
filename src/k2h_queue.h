@@ -27,47 +27,55 @@
 //---------------------------------------------------------
 // K2hQueue Class
 //---------------------------------------------------------
-class K2hQueue : public Nan::ObjectWrap
+class K2hQueue : public Napi::ObjectWrap<K2hQueue>
 {
 	friend class	K2hNode;
 
 	public:
-		static void Init(void);
-		static NAN_METHOD(NewInstance);
-		static v8::Local<v8::Object> GetInstance(Nan::NAN_METHOD_ARGS_TYPE info);
+		static void Init(Napi::Env env, Napi::Object exports);
+		static Napi::Object NewInstance(Napi::Env env);
+		static Napi::Object NewInstance(Napi::Env env, const Napi::Value& arg);
 
-	private:
-		explicit K2hQueue();
+		static Napi::Object GetInstance(const Napi::CallbackInfo& info);
+
+		// Constructor / Destructor
+		explicit K2hQueue(const Napi::CallbackInfo& info);
 		~K2hQueue();
 
-		static NAN_METHOD(New);
+	private:
+		Napi::Value New(const Napi::CallbackInfo& info);
 
-		static NAN_METHOD(On);
-		static NAN_METHOD(OnPush);
-		static NAN_METHOD(OnPop);
-		static NAN_METHOD(OnCount);
-		static NAN_METHOD(OnRead);
-		static NAN_METHOD(OnRemove);
-		static NAN_METHOD(Off);
-		static NAN_METHOD(OffPush);
-		static NAN_METHOD(OffPop);
-		static NAN_METHOD(OffCount);
-		static NAN_METHOD(OffRead);
-		static NAN_METHOD(OffRemove);
+		Napi::Value On(const Napi::CallbackInfo& info);
+		Napi::Value OnPush(const Napi::CallbackInfo& info);
+		Napi::Value OnPop(const Napi::CallbackInfo& info);
+		Napi::Value OnCount(const Napi::CallbackInfo& info);
+		Napi::Value OnRead(const Napi::CallbackInfo& info);
+		Napi::Value OnRemove(const Napi::CallbackInfo& info);
 
-		static NAN_METHOD(Init);
-		static NAN_METHOD(IsEmpty);
-		static NAN_METHOD(Count);
-		static NAN_METHOD(Read);
-		static NAN_METHOD(Push);
-		static NAN_METHOD(Pop);
-		static NAN_METHOD(Remove);
-		static NAN_METHOD(Dump);
+		Napi::Value Off(const Napi::CallbackInfo& info);
+		Napi::Value OffPush(const Napi::CallbackInfo& info);
+		Napi::Value OffPop(const Napi::CallbackInfo& info);
+		Napi::Value OffCount(const Napi::CallbackInfo& info);
+		Napi::Value OffRead(const Napi::CallbackInfo& info);
+		Napi::Value OffRemove(const Napi::CallbackInfo& info);
+
+		Napi::Value Initialize(const Napi::CallbackInfo& info);
+		Napi::Value IsEmpty(const Napi::CallbackInfo& info);
+		Napi::Value Count(const Napi::CallbackInfo& info);
+		Napi::Value Read(const Napi::CallbackInfo& info);
+		Napi::Value Push(const Napi::CallbackInfo& info);
+		Napi::Value Pop(const Napi::CallbackInfo& info);
+		Napi::Value Remove(const Napi::CallbackInfo& info);
+		Napi::Value Dump(const Napi::CallbackInfo& info);
+
+	public:
+		// constructor reference
+		static Napi::FunctionReference	constructor;
+
+		StackEmitCB	_cbs;
 
 	private:
-		static Nan::Persistent<v8::Function>	constructor;
-		K2HQueue								_k2hqueue;
-		StackEmitCB								_cbs;
+		K2HQueue	_k2hqueue;
 };
 
 #endif

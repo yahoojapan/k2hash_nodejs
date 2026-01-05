@@ -23,7 +23,6 @@
 #include "k2h_queue.h"
 #include "k2h_keyqueue.h"
 
-using namespace v8;
 using namespace std;
 
 //---------------------------------------------------------
@@ -80,38 +79,81 @@ const char*	stc_k2h_emitters[] = {
 };
 
 //---------------------------------------------------------
-// Utility macros
+// Utility (using StackEmitCB Class)
 //---------------------------------------------------------
-#define	SetK2hEmitterCallback(info, pos, pemitter) \
-		{ \
-			K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This()); \
-			if(info.Length() <= pos){ \
-				Nan::ThrowSyntaxError("No callback is specified."); \
-				return; \
-			} \
-			Nan::Callback* cb = new Nan::Callback(); \
-			cb->SetFunction(info[pos].As<v8::Function>()); \
-			bool	result = obj->_cbs.Set(pemitter, cb); \
-			info.GetReturnValue().Set(Nan::New(result)); \
-		}
+static Napi::Value SetK2hEmitterCallback(const Napi::CallbackInfo& info, size_t pos, const char* pemitter)
+{
+	Napi::Env env = info.Env();
 
-#define	UnsetK2hEmitterCallback(info, pemitter) \
-		{ \
-			K2hNode*	obj		= Nan::ObjectWrap::Unwrap<K2hNode>(info.This()); \
-			bool		result	= obj->_cbs.Unset(pemitter); \
-			info.GetReturnValue().Set(Nan::New(result)); \
-		}
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	// check parameter
+	if(info.Length() <= pos){
+		Napi::TypeError::New(env, "No callback is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	if(!info[pos].IsFunction()){
+		Napi::TypeError::New(env, "The parameter is not callback function.").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	Napi::Function cb = info[pos].As<Napi::Function>();
+
+	// set
+	bool result = obj->_cbs.Set(std::string(pemitter), cb);
+	return Napi::Boolean::New(env, result);
+}
+
+static Napi::Value UnsetK2hEmitterCallback(const Napi::CallbackInfo& info, const char* pemitter)
+{
+	Napi::Env env = info.Env();
+
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	// unset
+	bool result = obj->_cbs.Unset(std::string(pemitter));
+	return Napi::Boolean::New(env, result);
+}
 
 //---------------------------------------------------------
 // K2hNode Class
 //---------------------------------------------------------
-Nan::Persistent<Function> K2hNode::constructor;
+Napi::FunctionReference	K2hNode::constructor;
 
 //---------------------------------------------------------
 // K2hNode Methods
 //---------------------------------------------------------
-K2hNode::K2hNode() : _k2hshm(), _cbs()
+K2hNode::K2hNode(const Napi::CallbackInfo& info) : Napi::ObjectWrap<K2hNode>(info), _cbs(), _k2hshm()
 {
+	// [NOTE]
+	// Perhaps due to an initialization order issue, these
+	// k2hash debug environment variable settings don't work.
+	// So, load the environment variables and set the debug
+	// mode/file settings here.
+	//
+	const char* k2hdbgmode = std::getenv("K2HDBGMODE");
+	const char* k2hdbgfile = std::getenv("K2HDBGFILE");
+	if(k2hdbgmode && k2hdbgfile){
+		if(0 == strcasecmp(k2hdbgmode, "SLT") || 0 == strcasecmp(k2hdbgmode, "SILENT")){
+			k2h_set_debug_level_silent();
+		}else if(0 == strcasecmp(k2hdbgmode, "ERR") || 0 == strcasecmp(k2hdbgmode, "ERROR")){
+			k2h_set_debug_level_error();
+		}else if(0 == strcasecmp(k2hdbgmode, "WARNING") || 0 == strcasecmp(k2hdbgmode, "WARN") || 0 == strcasecmp(k2hdbgmode, "WAN")){
+			k2h_set_debug_level_warning();
+		}else if(0 == strcasecmp(k2hdbgmode, "INFO") || 0 == strcasecmp(k2hdbgmode, "INF") || 0 == strcasecmp(k2hdbgmode, "MSG")){
+			k2h_set_debug_level_message();
+		}
+		k2h_set_debug_file(k2hdbgfile);		// Ignore any errors that occur.
+	}
 }
 
 K2hNode::~K2hNode()
@@ -119,140 +161,153 @@ K2hNode::~K2hNode()
 	_k2hshm.Detach();
 }
 
-void K2hNode::Init(void)
+void K2hNode::Init(Napi::Env env, Napi::Object exports)
 {
-	// Prepare constructor template
-	Local<FunctionTemplate>	tpl = Nan::New<FunctionTemplate>(New);
-	tpl->SetClassName(Nan::New("K2hNode").ToLocalChecked()); 
-	tpl->InstanceTemplate()->SetInternalFieldCount(1); 
+	Napi::Function funcs = DefineClass(env, "K2hNode", {
+		// DefineClass normally handles the constructor internally. Therefore, there is no need
+		// to include a static wrapper New() in the class prototype, which works the same way as
+		// when using NAN.
+		// For reference, the following example shows how to declare New as a static method.
+		// (Registration is not normally required.)
+		//
+		//	K2hNode::InstanceMethod("new", 						&K2hNode::New),
 
-	// Prototype for event emitter
-	Nan::SetPrototypeMethod(tpl, "on",							On);
-	Nan::SetPrototypeMethod(tpl, "onCreate",					OnCreate);
-	Nan::SetPrototypeMethod(tpl, "onOpen",						OnOpen);
-	Nan::SetPrototypeMethod(tpl, "onOpenRW",					OnOpenRW);
-	Nan::SetPrototypeMethod(tpl, "onOpenRO",					OnOpenRO);
-	Nan::SetPrototypeMethod(tpl, "onOpenTempfile",				OnOpenTempfile);
-	Nan::SetPrototypeMethod(tpl, "onOpenMem",					OnOpenMem);
-	Nan::SetPrototypeMethod(tpl, "onClose",						OnClose);
-	Nan::SetPrototypeMethod(tpl, "onGet",						OnGet);
-	Nan::SetPrototypeMethod(tpl, "onGetSubkeys",				OnGetSubkeys);
-	Nan::SetPrototypeMethod(tpl, "onGetAttrs",					OnGetAttrs);
-	Nan::SetPrototypeMethod(tpl, "onGetAttrValue",				OnGetAttrValue);
-	Nan::SetPrototypeMethod(tpl, "onSet",						OnSet);
-	Nan::SetPrototypeMethod(tpl, "onAddSubkey",					OnAddSubkey);
-	Nan::SetPrototypeMethod(tpl, "onAddSubkeys",				OnAddSubkeys);
-	Nan::SetPrototypeMethod(tpl, "onAddAttr",					OnAddAttr);
-	Nan::SetPrototypeMethod(tpl, "onRemove",					OnRemove);
-	Nan::SetPrototypeMethod(tpl, "onRemoveAll",					OnRemoveAll);
-	Nan::SetPrototypeMethod(tpl, "onLoad",						OnLoad);
-	Nan::SetPrototypeMethod(tpl, "onLoadArchive",				OnLoad);
-	Nan::SetPrototypeMethod(tpl, "onPut",						OnPut);
-	Nan::SetPrototypeMethod(tpl, "onPutArchive",				OnPut);
-	Nan::SetPrototypeMethod(tpl, "off",							Off);
-	Nan::SetPrototypeMethod(tpl, "offCreate",					OffCreate);
-	Nan::SetPrototypeMethod(tpl, "offOpen",						OffOpen);
-	Nan::SetPrototypeMethod(tpl, "offOpenRW",					OffOpenRW);
-	Nan::SetPrototypeMethod(tpl, "offOpenRO",					OffOpenRO);
-	Nan::SetPrototypeMethod(tpl, "offOpenTempfile",				OffOpenTempfile);
-	Nan::SetPrototypeMethod(tpl, "offOpenMem",					OffOpenMem);
-	Nan::SetPrototypeMethod(tpl, "offClose",					OffClose);
-	Nan::SetPrototypeMethod(tpl, "offGet",						OffGet);
-	Nan::SetPrototypeMethod(tpl, "offGetSubkeys",				OffGetSubkeys);
-	Nan::SetPrototypeMethod(tpl, "offGetAttrs",					OffGetAttrs);
-	Nan::SetPrototypeMethod(tpl, "offGetAttrValue",				OffGetAttrValue);
-	Nan::SetPrototypeMethod(tpl, "offSet",						OffSet);
-	Nan::SetPrototypeMethod(tpl, "offAddSubkey",				OffAddSubkey);
-	Nan::SetPrototypeMethod(tpl, "offAddSubkeys",				OffAddSubkeys);
-	Nan::SetPrototypeMethod(tpl, "offAddAttr",					OffAddAttr);
-	Nan::SetPrototypeMethod(tpl, "offRemove",					OffRemove);
-	Nan::SetPrototypeMethod(tpl, "offRemoveAll",				OffRemoveAll);
-	Nan::SetPrototypeMethod(tpl, "offLoad",						OffLoad);
-	Nan::SetPrototypeMethod(tpl, "offLoadArchive",				OffLoad);
-	Nan::SetPrototypeMethod(tpl, "offPut",						OffPut);
-	Nan::SetPrototypeMethod(tpl, "offPutArchive",				OffPut);
+		// Prototype for event emitter
+		K2hNode::InstanceMethod("on",							&K2hNode::On),
+		K2hNode::InstanceMethod("onCreate",						&K2hNode::OnCreate),
+		K2hNode::InstanceMethod("onOpen",						&K2hNode::OnOpen),
+		K2hNode::InstanceMethod("onOpenRW",						&K2hNode::OnOpenRW),
+		K2hNode::InstanceMethod("onOpenRO",						&K2hNode::OnOpenRO),
+		K2hNode::InstanceMethod("onOpenTempfile",				&K2hNode::OnOpenTempfile),
+		K2hNode::InstanceMethod("onOpenMem",					&K2hNode::OnOpenMem),
+		K2hNode::InstanceMethod("onClose",						&K2hNode::OnClose),
+		K2hNode::InstanceMethod("onGet",						&K2hNode::OnGet),
+		K2hNode::InstanceMethod("onGetSubkeys",					&K2hNode::OnGetSubkeys),
+		K2hNode::InstanceMethod("onGetAttrs",					&K2hNode::OnGetAttrs),
+		K2hNode::InstanceMethod("onGetAttrValue",				&K2hNode::OnGetAttrValue),
+		K2hNode::InstanceMethod("onSet",						&K2hNode::OnSet),
+		K2hNode::InstanceMethod("onAddSubkey",					&K2hNode::OnAddSubkey),
+		K2hNode::InstanceMethod("onAddSubkeys",					&K2hNode::OnAddSubkeys),
+		K2hNode::InstanceMethod("onAddAttr",					&K2hNode::OnAddAttr),
+		K2hNode::InstanceMethod("onRemove",						&K2hNode::OnRemove),
+		K2hNode::InstanceMethod("onRemoveAll",					&K2hNode::OnRemoveAll),
+		K2hNode::InstanceMethod("onLoad",						&K2hNode::OnLoad),
+		K2hNode::InstanceMethod("onLoadArchive",				&K2hNode::OnLoad),
+		K2hNode::InstanceMethod("onPut",						&K2hNode::OnPut),
+		K2hNode::InstanceMethod("onPutArchive",					&K2hNode::OnPut),
+		K2hNode::InstanceMethod("off",							&K2hNode::Off),
+		K2hNode::InstanceMethod("offCreate",					&K2hNode::OffCreate),
+		K2hNode::InstanceMethod("offOpen",						&K2hNode::OffOpen),
+		K2hNode::InstanceMethod("offOpenRW",					&K2hNode::OffOpenRW),
+		K2hNode::InstanceMethod("offOpenRO",					&K2hNode::OffOpenRO),
+		K2hNode::InstanceMethod("offOpenTempfile",				&K2hNode::OffOpenTempfile),
+		K2hNode::InstanceMethod("offOpenMem",					&K2hNode::OffOpenMem),
+		K2hNode::InstanceMethod("offClose",						&K2hNode::OffClose),
+		K2hNode::InstanceMethod("offGet",						&K2hNode::OffGet),
+		K2hNode::InstanceMethod("offGetSubkeys",				&K2hNode::OffGetSubkeys),
+		K2hNode::InstanceMethod("offGetAttrs",					&K2hNode::OffGetAttrs),
+		K2hNode::InstanceMethod("offGetAttrValue",				&K2hNode::OffGetAttrValue),
+		K2hNode::InstanceMethod("offSet",						&K2hNode::OffSet),
+		K2hNode::InstanceMethod("offAddSubkey",					&K2hNode::OffAddSubkey),
+		K2hNode::InstanceMethod("offAddSubkeys",				&K2hNode::OffAddSubkeys),
+		K2hNode::InstanceMethod("offAddAttr",					&K2hNode::OffAddAttr),
+		K2hNode::InstanceMethod("offRemove",					&K2hNode::OffRemove),
+		K2hNode::InstanceMethod("offRemoveAll",					&K2hNode::OffRemoveAll),
+		K2hNode::InstanceMethod("offLoad",						&K2hNode::OffLoad),
+		K2hNode::InstanceMethod("offLoadArchive",				&K2hNode::OffLoad),
+		K2hNode::InstanceMethod("offPut",						&K2hNode::OffPut),
+		K2hNode::InstanceMethod("offPutArchive",				&K2hNode::OffPut),
 
-	// Prototype
-	Nan::SetPrototypeMethod(tpl, "create",						Create);
-	Nan::SetPrototypeMethod(tpl, "open",						Open);
-	Nan::SetPrototypeMethod(tpl, "openRW",						OpenRW);
-	Nan::SetPrototypeMethod(tpl, "openRO",						OpenRO);
-	Nan::SetPrototypeMethod(tpl, "openTempfile",				OpenTempfile);
-	Nan::SetPrototypeMethod(tpl, "openMem",						OpenMem);
-	Nan::SetPrototypeMethod(tpl, "close",						Close);
+		// Prototype
+		K2hNode::InstanceMethod("create",						&K2hNode::Create),
+		K2hNode::InstanceMethod("open",							&K2hNode::Open),
+		K2hNode::InstanceMethod("openRW",						&K2hNode::OpenRW),
+		K2hNode::InstanceMethod("openRO",						&K2hNode::OpenRO),
+		K2hNode::InstanceMethod("openTempfile",					&K2hNode::OpenTempfile),
+		K2hNode::InstanceMethod("openMem",						&K2hNode::OpenMem),
+		K2hNode::InstanceMethod("close",						&K2hNode::Close),
 
-	Nan::SetPrototypeMethod(tpl, "getValue",					GetValue);
-	Nan::SetPrototypeMethod(tpl, "getSubkeys",					GetSubkeys);
+		K2hNode::InstanceMethod("getValue",						&K2hNode::GetValue),
+		K2hNode::InstanceMethod("getSubkeys",					&K2hNode::GetSubkeys),
 
-	Nan::SetPrototypeMethod(tpl, "setValue",					SetValue);
-	Nan::SetPrototypeMethod(tpl, "addSubkey",					AddSubkey);
-	Nan::SetPrototypeMethod(tpl, "addSubkeys",					AddSubkeys);
+		K2hNode::InstanceMethod("setValue",						&K2hNode::SetValue),
+		K2hNode::InstanceMethod("addSubkey",					&K2hNode::AddSubkey),
+		K2hNode::InstanceMethod("addSubkeys",					&K2hNode::AddSubkeys),
 
-	Nan::SetPrototypeMethod(tpl, "remove",						Remove);
-	Nan::SetPrototypeMethod(tpl, "removeAll",					RemoveAll);
+		K2hNode::InstanceMethod("remove",						&K2hNode::Remove),
+		K2hNode::InstanceMethod("removeAll",					&K2hNode::RemoveAll),
 
-	Nan::SetPrototypeMethod(tpl, "printState",					PrintState);
-	Nan::SetPrototypeMethod(tpl, "printVersion",				PrintVersion);
+		K2hNode::InstanceMethod("printState",					&K2hNode::PrintState),
+		K2hNode::InstanceMethod("printVersion",					&K2hNode::PrintVersion),
 
-	Nan::SetPrototypeMethod(tpl, "dumpHead",					DumpHead);
-	Nan::SetPrototypeMethod(tpl, "dumpKeytable",				DumpKeytable);
-	Nan::SetPrototypeMethod(tpl, "dumpFullKeytable",			DumpFullKeytable);
-	Nan::SetPrototypeMethod(tpl, "dumpElementtable",			DumpElementtable);
-	Nan::SetPrototypeMethod(tpl, "dumpFull",					DumpFull);
+		K2hNode::InstanceMethod("dumpHead",						&K2hNode::DumpHead),
+		K2hNode::InstanceMethod("dumpKeytable",					&K2hNode::DumpKeytable),
+		K2hNode::InstanceMethod("dumpFullKeytable",				&K2hNode::DumpFullKeytable),
+		K2hNode::InstanceMethod("dumpElementtable",				&K2hNode::DumpElementtable),
+		K2hNode::InstanceMethod("dumpFull",						&K2hNode::DumpFull),
 
-	Nan::SetPrototypeMethod(tpl, "transaction",					Transaction);
-	Nan::SetPrototypeMethod(tpl, "enableTransaction",			EnableTransaction);
-	Nan::SetPrototypeMethod(tpl, "disableTransaction",			DisableTransaction);
+		K2hNode::InstanceMethod("transaction",					&K2hNode::Transaction),
+		K2hNode::InstanceMethod("enableTransaction",			&K2hNode::EnableTransaction),
+		K2hNode::InstanceMethod("disableTransaction",			&K2hNode::DisableTransaction),
 
-	Nan::SetPrototypeMethod(tpl, "getTransactionThreadPool",	GetTransactionThreadPool);
-	Nan::SetPrototypeMethod(tpl, "setTransactionThreadPool",	SetTransactionThreadPool);
-	Nan::SetPrototypeMethod(tpl, "unsetTransactionThreadPool",	UnsetTransactionThreadPool);
+		K2hNode::InstanceMethod("getTransactionThreadPool",		&K2hNode::GetTransactionThreadPool),
+		K2hNode::InstanceMethod("setTransactionThreadPool",		&K2hNode::SetTransactionThreadPool),
+		K2hNode::InstanceMethod("unsetTransactionThreadPool",	&K2hNode::UnsetTransactionThreadPool),
 
-	Nan::SetPrototypeMethod(tpl, "putArchive",					PutArchive);
-	Nan::SetPrototypeMethod(tpl, "loadArchive",					LoadArchive);
+		K2hNode::InstanceMethod("putArchive",					&K2hNode::PutArchive),
+		K2hNode::InstanceMethod("loadArchive",					&K2hNode::LoadArchive),
 
-	Nan::SetPrototypeMethod(tpl, "getQueue",					getQueue);
-	Nan::SetPrototypeMethod(tpl, "getKeyQueue",					getKeyQueue);
+		K2hNode::InstanceMethod("getQueue",						&K2hNode::getQueue),
+		K2hNode::InstanceMethod("getKeyQueue",					&K2hNode::getKeyQueue),
 
-	Nan::SetPrototypeMethod(tpl, "setCommonAttribute",			SetCommonAttribute);
-	Nan::SetPrototypeMethod(tpl, "cleanCommonAttribute",		CleanCommonAttribute);
+		K2hNode::InstanceMethod("setCommonAttribute",			&K2hNode::SetCommonAttribute),
+		K2hNode::InstanceMethod("cleanCommonAttribute",			&K2hNode::CleanCommonAttribute),
 
-	Nan::SetPrototypeMethod(tpl, "addAttrPluginLib",			AddAttrPluginLib);
-	Nan::SetPrototypeMethod(tpl, "addAttrCryptPass",			AddAttrCryptPass);
+		K2hNode::InstanceMethod("addAttrPluginLib",				&K2hNode::AddAttrPluginLib),
+		K2hNode::InstanceMethod("addAttrCryptPass",				&K2hNode::AddAttrCryptPass),
 
-	Nan::SetPrototypeMethod(tpl, "getAttrVersionInfos",			GetAttrVersionInfos);
-	Nan::SetPrototypeMethod(tpl, "getAttrInfos",				GetAttrInfos);
-	Nan::SetPrototypeMethod(tpl, "getAttrs",					GetAttrs);
-	Nan::SetPrototypeMethod(tpl, "getAttrValue",				GetAttrValue);
+		K2hNode::InstanceMethod("getAttrVersionInfos",			&K2hNode::GetAttrVersionInfos),
+		K2hNode::InstanceMethod("getAttrInfos",					&K2hNode::GetAttrInfos),
+		K2hNode::InstanceMethod("getAttrs",						&K2hNode::GetAttrs),
+		K2hNode::InstanceMethod("getAttrValue",					&K2hNode::GetAttrValue),
 
-	Nan::SetPrototypeMethod(tpl, "addAttr",						AddAttr);
+		K2hNode::InstanceMethod("addAttr",						&K2hNode::AddAttr)
+	});
 
-	// Reset
-	constructor.Reset(Nan::GetFunction(tpl).ToLocalChecked());
+	constructor = Napi::Persistent(funcs);
+	constructor.SuppressDestruct();
+
+	// Initialize K2hQueue and K2hKeyQueue classes
+	K2hQueue::Init(env, exports);
+	K2hKeyQueue::Init(env, exports);
+
+	// [NOTE]
+	// do NOT do exports.Set("K2hNode", func) here if InitAll will return createFn.
+	//
 }
 
-NAN_METHOD(K2hNode::New)
+Napi::Value K2hNode::New(const Napi::CallbackInfo& info)
 {
-	if(info.IsConstructCall()){ 
+	if(info.IsConstructCall()){
 		// Invoked as constructor: new K2hNode()
-		K2hNode* obj = new K2hNode();
-		obj->Wrap(info.This()); 
-		info.GetReturnValue().Set(info.This()); 
-	}else{ 
-		// Invoked as plain function K2hNode(), turn into construct call. 
-		const int		argc		= 1;
-		Local<Value>	argv[argc]	= {info[0]}; 
-		Local<Function>	cons		= Nan::New<Function>(constructor); 
-		info.GetReturnValue().Set(Nan::NewInstance(cons, argc, argv).ToLocalChecked()); 
+		return info.This();
+	}else{
+		// Invoked as plain function K2hNode(), turn into construct call.
+		return constructor.New({});		// always no arguments
 	}
 }
 
-NAN_METHOD(K2hNode::NewInstance)
+// [NOTE]
+// The logic for receiving arguments when switching to N-API has been removed.
+// This is because the arguments were not used in the first place and did not
+// need to be defined.
+//
+// NewInstance( always no argments )
+Napi::Object K2hNode::NewInstance(Napi::Env env)
 {
-	const unsigned	argc		= 1;
-	Local<Value>	argv[argc]	= {info[0]}; 
-	Local<Function>	cons		= Nan::New<Function>(constructor); 
-	info.GetReturnValue().Set(Nan::NewInstance(cons, argc, argv).ToLocalChecked());
+	Napi::EscapableHandleScope scope(env);
+	Napi::Object obj = constructor.New({}).As<Napi::Object>();
+	return scope.Escape(napi_value(obj)).ToObject();
 }
 
 /**
@@ -277,28 +332,32 @@ NAN_METHOD(K2hNode::NewInstance)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::On)
+Napi::Value K2hNode::On(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
+	// check
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("No handle emitter name is specified.");
-		return;
+		Napi::TypeError::New(env, "No handle emitter name is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}else if(info.Length() < 2){
-		Nan::ThrowSyntaxError("No callback is specified.");
-		return;
+		Napi::TypeError::New(env, "No callback is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
 	// check emitter name
-	Nan::Utf8String	emitter(info[0]);
-	const char*		pemitter;
-	if(NULL == (pemitter = GetNormalizationEmitter(*emitter, stc_k2h_emitters))){
-		string	msg = "Unknown ";
-		msg			+= *emitter;
-		msg			+= " emitter";
-		Nan::ThrowSyntaxError(msg.c_str());
-		return;
+	std::string emitter  = info[0].ToString().Utf8Value();
+	const char* pemitter = GetNormalizationEmitter(emitter.c_str(), stc_k2h_emitters);
+	if(!pemitter){
+		std::string	msg	= "Unknown ";
+		msg				+= emitter;
+		msg				+= " emitter";
+		Napi::TypeError::New(env, msg).ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
+
 	// add callback
-	SetK2hEmitterCallback(info, 1, pemitter);
+	return SetK2hEmitterCallback(info, 1, pemitter);
 }
 
 /**
@@ -314,9 +373,9 @@ NAN_METHOD(K2hNode::On)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OnCreate)
+Napi::Value K2hNode::OnCreate(const Napi::CallbackInfo& info)
 {
-	SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_CREATE]);
+	return SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_CREATE]);
 }
 
 /**
@@ -332,9 +391,9 @@ NAN_METHOD(K2hNode::OnCreate)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OnOpen)
+Napi::Value K2hNode::OnOpen(const Napi::CallbackInfo& info)
 {
-	SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_OPEN]);
+	return SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_OPEN]);
 }
 
 /**
@@ -350,9 +409,9 @@ NAN_METHOD(K2hNode::OnOpen)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OnOpenRW)
+Napi::Value K2hNode::OnOpenRW(const Napi::CallbackInfo& info)
 {
-	SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_OPENRW]);
+	return SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_OPENRW]);
 }
 
 /**
@@ -368,9 +427,9 @@ NAN_METHOD(K2hNode::OnOpenRW)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OnOpenRO)
+Napi::Value K2hNode::OnOpenRO(const Napi::CallbackInfo& info)
 {
-	SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_OPENRO]);
+	return SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_OPENRO]);
 }
 
 /**
@@ -386,9 +445,9 @@ NAN_METHOD(K2hNode::OnOpenRO)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OnOpenTempfile)
+Napi::Value K2hNode::OnOpenTempfile(const Napi::CallbackInfo& info)
 {
-	SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_OPENTEMP]);
+	return SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_OPENTEMP]);
 }
 
 /**
@@ -404,9 +463,9 @@ NAN_METHOD(K2hNode::OnOpenTempfile)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OnOpenMem)
+Napi::Value K2hNode::OnOpenMem(const Napi::CallbackInfo& info)
 {
-	SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_OPENMEM]);
+	return SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_OPENMEM]);
 }
 
 /**
@@ -422,9 +481,9 @@ NAN_METHOD(K2hNode::OnOpenMem)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OnClose)
+Napi::Value K2hNode::OnClose(const Napi::CallbackInfo& info)
 {
-	SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_CLOSE]);
+	return SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_CLOSE]);
 }
 
 /**
@@ -440,9 +499,9 @@ NAN_METHOD(K2hNode::OnClose)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OnGet)
+Napi::Value K2hNode::OnGet(const Napi::CallbackInfo& info)
 {
-	SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_GET]);
+	return SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_GET]);
 }
 
 /**
@@ -458,9 +517,9 @@ NAN_METHOD(K2hNode::OnGet)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OnGetSubkeys)
+Napi::Value K2hNode::OnGetSubkeys(const Napi::CallbackInfo& info)
 {
-	SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_GETSUBKEYS]);
+	return SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_GETSUBKEYS]);
 }
 
 /**
@@ -476,9 +535,9 @@ NAN_METHOD(K2hNode::OnGetSubkeys)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OnGetAttrs)
+Napi::Value K2hNode::OnGetAttrs(const Napi::CallbackInfo& info)
 {
-	SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_GETATTRS]);
+	return SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_GETATTRS]);
 }
 
 /**
@@ -494,9 +553,9 @@ NAN_METHOD(K2hNode::OnGetAttrs)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OnGetAttrValue)
+Napi::Value K2hNode::OnGetAttrValue(const Napi::CallbackInfo& info)
 {
-	SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_GETATTRVAL]);
+	return SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_GETATTRVAL]);
 }
 
 /**
@@ -512,9 +571,9 @@ NAN_METHOD(K2hNode::OnGetAttrValue)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OnSet)
+Napi::Value K2hNode::OnSet(const Napi::CallbackInfo& info)
 {
-	SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_SET]);
+	return SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_SET]);
 }
 
 /**
@@ -530,9 +589,9 @@ NAN_METHOD(K2hNode::OnSet)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OnAddSubkey)
+Napi::Value K2hNode::OnAddSubkey(const Napi::CallbackInfo& info)
 {
-	SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_ADDSUBKEY]);
+	return SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_ADDSUBKEY]);
 }
 
 /**
@@ -548,9 +607,9 @@ NAN_METHOD(K2hNode::OnAddSubkey)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OnAddSubkeys)
+Napi::Value K2hNode::OnAddSubkeys(const Napi::CallbackInfo& info)
 {
-	SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_ADDSUBKEYS]);
+	return SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_ADDSUBKEYS]);
 }
 
 /**
@@ -566,9 +625,9 @@ NAN_METHOD(K2hNode::OnAddSubkeys)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OnAddAttr)
+Napi::Value K2hNode::OnAddAttr(const Napi::CallbackInfo& info)
 {
-	SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_ADDATTR]);
+	return SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_ADDATTR]);
 }
 
 /**
@@ -584,9 +643,9 @@ NAN_METHOD(K2hNode::OnAddAttr)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OnRemove)
+Napi::Value K2hNode::OnRemove(const Napi::CallbackInfo& info)
 {
-	SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_REMOVE]);
+	return SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_REMOVE]);
 }
 
 /**
@@ -602,9 +661,9 @@ NAN_METHOD(K2hNode::OnRemove)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OnRemoveAll)
+Napi::Value K2hNode::OnRemoveAll(const Napi::CallbackInfo& info)
 {
-	SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_REMOVEALL]);
+	return SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_REMOVEALL]);
 }
 
 /**
@@ -620,9 +679,9 @@ NAN_METHOD(K2hNode::OnRemoveAll)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OnLoad)
+Napi::Value K2hNode::OnLoad(const Napi::CallbackInfo& info)
 {
-	SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_LOAD]);
+	return SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_LOAD]);
 }
 
 /**
@@ -638,9 +697,9 @@ NAN_METHOD(K2hNode::OnLoad)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OnPut)
+Napi::Value K2hNode::OnPut(const Napi::CallbackInfo& info)
 {
-	SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_PUT]);
+	return SetK2hEmitterCallback(info, 0, stc_k2h_emitters[K2H_EMITTER_POS_PUT]);
 }
 
 /**
@@ -656,25 +715,27 @@ NAN_METHOD(K2hNode::OnPut)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::Off)
+Napi::Value K2hNode::Off(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("No handle emitter name is specified.");
-		return;
+		Napi::TypeError::New(env, "No handle emitter name is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
 	// check emitter name
-	Nan::Utf8String	emitter(info[0]);
-	const char*		pemitter;
-	if(NULL == (pemitter = GetNormalizationEmitter(*emitter, stc_k2h_emitters))){
-		string	msg = "Unknown ";
-		msg			+= *emitter;
-		msg			+= " emitter";
-		Nan::ThrowSyntaxError(msg.c_str());
-		return;
+	std::string	emitter  = info[0].ToString().Utf8Value();
+	const char*	pemitter = GetNormalizationEmitter(emitter.c_str(), stc_k2h_emitters);
+	if (nullptr == pemitter) {
+		std::string msg	= "Unknown ";
+		msg				+= emitter;
+		msg				+= " emitter";
+		Napi::TypeError::New(env, msg).ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 	// unset callback
-	UnsetK2hEmitterCallback(info, pemitter);
+	return UnsetK2hEmitterCallback(info, pemitter);
 }
 
 /**
@@ -687,9 +748,9 @@ NAN_METHOD(K2hNode::Off)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OffCreate)
+Napi::Value K2hNode::OffCreate(const Napi::CallbackInfo& info)
 {
-	UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_CREATE]);
+	return UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_CREATE]);
 }
 
 /**
@@ -702,9 +763,9 @@ NAN_METHOD(K2hNode::OffCreate)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OffOpen)
+Napi::Value K2hNode::OffOpen(const Napi::CallbackInfo& info)
 {
-	UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_OPEN]);
+	return UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_OPEN]);
 }
 
 /**
@@ -717,9 +778,9 @@ NAN_METHOD(K2hNode::OffOpen)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OffOpenRW)
+Napi::Value K2hNode::OffOpenRW(const Napi::CallbackInfo& info)
 {
-	UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_OPENRW]);
+	return UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_OPENRW]);
 }
 
 /**
@@ -732,9 +793,9 @@ NAN_METHOD(K2hNode::OffOpenRW)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OffOpenRO)
+Napi::Value K2hNode::OffOpenRO(const Napi::CallbackInfo& info)
 {
-	UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_OPENRO]);
+	return UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_OPENRO]);
 }
 
 /**
@@ -747,9 +808,9 @@ NAN_METHOD(K2hNode::OffOpenRO)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OffOpenTempfile)
+Napi::Value K2hNode::OffOpenTempfile(const Napi::CallbackInfo& info)
 {
-	UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_OPENTEMP]);
+	return UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_OPENTEMP]);
 }
 
 /**
@@ -762,9 +823,9 @@ NAN_METHOD(K2hNode::OffOpenTempfile)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OffOpenMem)
+Napi::Value K2hNode::OffOpenMem(const Napi::CallbackInfo& info)
 {
-	UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_OPENMEM]);
+	return UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_OPENMEM]);
 }
 
 /**
@@ -777,9 +838,9 @@ NAN_METHOD(K2hNode::OffOpenMem)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OffClose)
+Napi::Value K2hNode::OffClose(const Napi::CallbackInfo& info)
 {
-	UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_CLOSE]);
+	return UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_CLOSE]);
 }
 
 /**
@@ -792,9 +853,9 @@ NAN_METHOD(K2hNode::OffClose)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OffGet)
+Napi::Value K2hNode::OffGet(const Napi::CallbackInfo& info)
 {
-	UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_GET]);
+	return UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_GET]);
 }
 
 /**
@@ -807,9 +868,9 @@ NAN_METHOD(K2hNode::OffGet)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OffGetSubkeys)
+Napi::Value K2hNode::OffGetSubkeys(const Napi::CallbackInfo& info)
 {
-	UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_GETSUBKEYS]);
+	return UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_GETSUBKEYS]);
 }
 
 /**
@@ -822,9 +883,9 @@ NAN_METHOD(K2hNode::OffGetSubkeys)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OffGetAttrs)
+Napi::Value K2hNode::OffGetAttrs(const Napi::CallbackInfo& info)
 {
-	UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_GETATTRS]);
+	return UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_GETATTRS]);
 }
 
 /**
@@ -837,9 +898,9 @@ NAN_METHOD(K2hNode::OffGetAttrs)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OffGetAttrValue)
+Napi::Value K2hNode::OffGetAttrValue(const Napi::CallbackInfo& info)
 {
-	UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_GETATTRVAL]);
+	return UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_GETATTRVAL]);
 }
 
 /**
@@ -852,9 +913,9 @@ NAN_METHOD(K2hNode::OffGetAttrValue)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OffSet)
+Napi::Value K2hNode::OffSet(const Napi::CallbackInfo& info)
 {
-	UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_SET]);
+	return UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_SET]);
 }
 
 /**
@@ -867,9 +928,9 @@ NAN_METHOD(K2hNode::OffSet)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OffAddSubkey)
+Napi::Value K2hNode::OffAddSubkey(const Napi::CallbackInfo& info)
 {
-	UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_ADDSUBKEY]);
+	return UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_ADDSUBKEY]);
 }
 
 /**
@@ -882,9 +943,9 @@ NAN_METHOD(K2hNode::OffAddSubkey)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OffAddSubkeys)
+Napi::Value K2hNode::OffAddSubkeys(const Napi::CallbackInfo& info)
 {
-	UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_ADDSUBKEYS]);
+	return UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_ADDSUBKEYS]);
 }
 
 /**
@@ -897,9 +958,9 @@ NAN_METHOD(K2hNode::OffAddSubkeys)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OffAddAttr)
+Napi::Value K2hNode::OffAddAttr(const Napi::CallbackInfo& info)
 {
-	UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_ADDATTR]);
+	return UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_ADDATTR]);
 }
 
 /**
@@ -912,9 +973,9 @@ NAN_METHOD(K2hNode::OffAddAttr)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OffRemove)
+Napi::Value K2hNode::OffRemove(const Napi::CallbackInfo& info)
 {
-	UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_REMOVE]);
+	return UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_REMOVE]);
 }
 
 /**
@@ -927,9 +988,9 @@ NAN_METHOD(K2hNode::OffRemove)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OffRemoveAll)
+Napi::Value K2hNode::OffRemoveAll(const Napi::CallbackInfo& info)
 {
-	UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_REMOVEALL]);
+	return UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_REMOVEALL]);
 }
 
 /**
@@ -942,9 +1003,9 @@ NAN_METHOD(K2hNode::OffRemoveAll)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OffLoad)
+Napi::Value K2hNode::OffLoad(const Napi::CallbackInfo& info)
 {
-	UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_LOAD]);
+	return UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_LOAD]);
 }
 
 /**
@@ -957,9 +1018,9 @@ NAN_METHOD(K2hNode::OffLoad)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::OffPut)
+Napi::Value K2hNode::OffPut(const Napi::CallbackInfo& info)
 {
-	UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_PUT]);
+	return UnsetK2hEmitterCallback(info, stc_k2h_emitters[K2H_EMITTER_POS_PUT]);
 }
 
 /**
@@ -999,97 +1060,158 @@ NAN_METHOD(K2hNode::OffPut)
  * var k2hash = require('bindings')('k2hash') ;
  * var k2h = k2hash() ;
  * k2h.Create('/tmp/zz.k2h') ;
- * k2h.SetValue('key','val') ;
+ * k2h.SetValue('key', 'val') ;
  * console_log( k2h.GetValue('key') ) ;
  * k2h.Close() ;
  * @endcode
  *
  */
 
-NAN_METHOD(K2hNode::Create)
+Napi::Value K2hNode::Create(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
+	// check
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("No file name is specified.");
+		Napi::TypeError::New(env, "No file name is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	K2hNode*		obj				= Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
-	Nan::Utf8String	filename(info[0]);
-	bool			isfullmapping	= true;
-	int				mask_bitcnt		= K2HShm::MIN_MASK_BITCOUNT;
-	int				cmask_bitcnt	= K2HShm::DEFAULT_COLLISION_MASK_BITCOUNT;
-	int				max_element_cnt	= K2HShm::DEFAULT_MAX_ELEMENT_CNT;
-	size_t			pagesize		= K2HShm::MIN_PAGE_SIZE;
-	Nan::Callback*	callback		= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_CREATE]);
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
 
+	// Variables with default value for optional parameters
+	bool	isfullmapping	= true;
+	int		mask_bitcnt		= K2HShm::MIN_MASK_BITCOUNT;
+	int		cmask_bitcnt	= K2HShm::DEFAULT_COLLISION_MASK_BITCOUNT;
+	int		max_element_cnt	= K2HShm::DEFAULT_MAX_ELEMENT_CNT;
+	size_t	pagesize		= K2HShm::MIN_PAGE_SIZE;
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_CREATE]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
+	}
+
+	// info[0] : Required
+	if(info[0].IsNull() || info[0].IsUndefined()){
+		Napi::TypeError::New(env, "file name is empty.").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	std::string filename = info[0].ToString().Utf8Value();
+
+	// info[1]
 	if(1 < info.Length()){
-		if(info[1]->IsFunction()){
+		if(info[1].IsFunction()){
 			if(2 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
 			}
-			callback		= new Nan::Callback(info[1].As<v8::Function>());
+			maybeCallback	= info[1].As<Napi::Function>();
+			hasCallback		= true;
 		}else{
-			isfullmapping	= Nan::To<bool>(info[1]).ToChecked();
+			isfullmapping = info[1].ToBoolean();
 		}
-	}
-	if(2 < info.Length()){
-		if(info[2]->IsFunction()){
-			if(3 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[2].As<v8::Function>());
-		}else{
-			mask_bitcnt		= Nan::To<int>(info[2]).ToChecked();
-		}
-	}
-	if(3 < info.Length()){
-		if(info[3]->IsFunction()){
-			if(4 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[3].As<v8::Function>());
-		}else{
-			cmask_bitcnt	= Nan::To<int>(info[3]).ToChecked();
-		}
-	}
-	if(4 < info.Length()){
-		if(info[4]->IsFunction()){
-			if(5 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[4].As<v8::Function>());
-		}else{
-			max_element_cnt	= Nan::To<int>(info[4]).ToChecked();
-		}
-	}
-	if(5 < info.Length()){
-		if(info[5]->IsFunction()){
-			if(6 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[5].As<v8::Function>());
-		}else{
-			pagesize		= Nan::To<int>(info[5]).ToChecked();
-		}
-	}
-	if(6 < info.Length()){
-		if(7 < info.Length() || !info[6]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
-		}
-		callback			= new Nan::Callback(info[6].As<v8::Function>());
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new CreateWorker(callback, &(obj->_k2hshm), *filename, isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize));
-		info.GetReturnValue().Set(Nan::True());
+	// info[2]
+	if(2 < info.Length()){
+		if(info[2].IsFunction()){
+			if(3 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[2].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			if(!info[2].IsNumber()){
+				Napi::TypeError::New(env, "Third parameter must be int.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			mask_bitcnt = info[2].As<Napi::Number>().Int32Value();
+		}
+	}
+
+	// info[3]
+	if(3 < info.Length()){
+		if(info[3].IsFunction()){
+			if(4 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[3].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			if(!info[3].IsNumber()){
+				Napi::TypeError::New(env, "Fourth parameter must be int.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			cmask_bitcnt = info[3].As<Napi::Number>().Int32Value();
+		}
+	}
+
+	// info[4]
+	if(4 < info.Length()){
+		if(info[4].IsFunction()){
+			if(5 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[4].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			if(!info[4].IsNumber()){
+				Napi::TypeError::New(env, "Fifth parameter must be int.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			max_element_cnt = info[4].As<Napi::Number>().Int32Value();
+		}
+	}
+
+	// info[5]
+	if(5 < info.Length()){
+		if(info[5].IsFunction()){
+			if(6 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[5].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			if(!info[5].IsNumber()){
+				Napi::TypeError::New(env, "Sixth parameter must be int.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			pagesize = static_cast<size_t>(info[5].As<Napi::Number>().Int64Value());
+		}
+	}
+
+	// info[6]
+	if(6 < info.Length()){
+		if(7 < info.Length() || !info[6].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
+		}
+		maybeCallback	= info[6].As<Napi::Function>();
+		hasCallback		= true;
+	}
+
+	// Execute
+	if(hasCallback){
+		// Create worker and Queue it
+		CreateAsyncWorker* worker = new CreateAsyncWorker(maybeCallback, &(obj->_k2hshm), filename, isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize);
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
-		info.GetReturnValue().Set(Nan::New(obj->_k2hshm.Create(*filename, isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize)));
+		bool result = obj->_k2hshm.Create(filename.c_str(), isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize);
+		return Napi::Boolean::New(env, result);
 	}
 }
 
@@ -1135,114 +1257,149 @@ NAN_METHOD(K2hNode::Create)
  *
  */
 
-NAN_METHOD(K2hNode::Open)
+Napi::Value K2hNode::Open(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("No file name is specified.");
+		Napi::TypeError::New(env, "No file name is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	K2hNode*		obj				= Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
-	Nan::Utf8String	filename(info[0]);
-	bool			isreadonly		= false;
-	bool			istempfile		= false;
-	bool			isfullmapping	= true;
-	int				mask_bitcnt		= K2HShm::MIN_MASK_BITCOUNT;
-	int				cmask_bitcnt	= K2HShm::DEFAULT_COLLISION_MASK_BITCOUNT;
-	int				max_element_cnt	= K2HShm::DEFAULT_MAX_ELEMENT_CNT;
-	size_t			pagesize		= K2HShm::MIN_PAGE_SIZE;
-	Nan::Callback*	callback		= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_OPEN]);
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
 
+	std::string	filename		= info[0].ToString().Utf8Value();
+	bool		isreadonly		= false;
+	bool		istempfile		= false;
+	bool		isfullmapping	= true;
+	int			mask_bitcnt		= K2HShm::MIN_MASK_BITCOUNT;
+	int			cmask_bitcnt	= K2HShm::DEFAULT_COLLISION_MASK_BITCOUNT;
+	int			max_element_cnt	= K2HShm::DEFAULT_MAX_ELEMENT_CNT;
+	size_t		pagesize		= K2HShm::MIN_PAGE_SIZE;
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_OPEN]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
+	}
+
+	// parse positional optional args
 	if(1 < info.Length()){
-		if(info[1]->IsFunction()){
+		if(info[1].IsFunction()){
 			if(2 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
 			}
-			callback		= new Nan::Callback(info[1].As<v8::Function>());
+			maybeCallback	= info[1].As<Napi::Function>();
+			hasCallback		= true;
 		}else{
-			isreadonly		= Nan::To<bool>(info[1]).ToChecked();
+			isreadonly		= info[1].ToBoolean().Value();
 		}
-	}
-	if(2 < info.Length()){
-		if(info[2]->IsFunction()){
-			if(3 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[2].As<v8::Function>());
-		}else{
-			istempfile		= Nan::To<bool>(info[2]).ToChecked();
-		}
-	}
-	if(3 < info.Length()){
-		if(info[3]->IsFunction()){
-			if(4 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[3].As<v8::Function>());
-		}else{
-			isfullmapping	= Nan::To<bool>(info[3]).ToChecked();
-		}
-	}
-	if(4 < info.Length()){
-		if(info[4]->IsFunction()){
-			if(5 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[4].As<v8::Function>());
-		}else{
-			mask_bitcnt		= Nan::To<int>(info[4]).ToChecked();
-		}
-	}
-	if(5 < info.Length()){
-		if(info[5]->IsFunction()){
-			if(6 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[5].As<v8::Function>());
-		}else{
-			cmask_bitcnt	= Nan::To<int>(info[5]).ToChecked();
-		}
-	}
-	if(6 < info.Length()){
-		if(info[6]->IsFunction()){
-			if(7 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[6].As<v8::Function>());
-		}else{
-			max_element_cnt	= Nan::To<int>(info[6]).ToChecked();
-		}
-	}
-	if(7 < info.Length()){
-		if(info[7]->IsFunction()){
-			if(8 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[7].As<v8::Function>());
-		}else{
-			pagesize		= Nan::To<int>(info[7]).ToChecked();
-		}
-	}
-	if(8 < info.Length()){
-		if(9 < info.Length() || !info[8]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
-		}
-		callback			= new Nan::Callback(info[8].As<v8::Function>());
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new OpenWorker(callback, &(obj->_k2hshm), *filename, isreadonly, false, istempfile, isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize));
-		info.GetReturnValue().Set(Nan::True());
+	if(2 < info.Length()){
+		if(info[2].IsFunction()){
+			if(3 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[2].As<Napi::Function>();
+			hasCallback		= true;
+		} else {
+			istempfile		= info[2].ToBoolean().Value();
+		}
+	}
+
+	if(3 < info.Length()){
+		if(info[3].IsFunction()){
+			if(4 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[3].As<Napi::Function>();
+			hasCallback		= true;
+		} else {
+			isfullmapping	= info[3].ToBoolean().Value();
+		}
+	}
+
+	if(4 < info.Length()){
+		if(info[4].IsFunction()){
+			if(5 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[4].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			mask_bitcnt		= info[4].ToNumber().Int32Value();
+		}
+	}
+
+	if(5 < info.Length()){
+		if(info[5].IsFunction()){
+			if(6 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[5].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			cmask_bitcnt	= info[5].ToNumber().Int32Value();
+		}
+	}
+
+	if(6 < info.Length()){
+		if(info[6].IsFunction()){
+			if(7 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[6].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			max_element_cnt	= info[6].ToNumber().Int32Value();
+		}
+	}
+
+	if(7 < info.Length()){
+		if(info[7].IsFunction()){
+			if(8 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[7].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			pagesize		= static_cast<size_t>(info[7].ToNumber().Int64Value());
+		}
+	}
+
+	if(8 < info.Length()){
+		if(9 < info.Length() || !info[8].IsFunction()) {
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
+		}
+		maybeCallback	= info[8].As<Napi::Function>();
+		hasCallback		= true;
+	}
+
+	// Execute
+	if(hasCallback){
+		OpenAsyncWorker* worker = new OpenAsyncWorker(maybeCallback, &(obj->_k2hshm), filename, isreadonly, false, istempfile, isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize);
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
-		info.GetReturnValue().Set(Nan::New(obj->_k2hshm.Attach(*filename, isreadonly, false, istempfile, isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize)));
+		bool result = obj->_k2hshm.Attach(filename.c_str(), isreadonly, false, istempfile, isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize);
+		return Napi::Boolean::New(env, result);
 	}
 }
 
@@ -1283,90 +1440,121 @@ NAN_METHOD(K2hNode::Open)
  *
  */
 
-NAN_METHOD(K2hNode::OpenRW)
+Napi::Value K2hNode::OpenRW(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("No file name is specified.");
+		Napi::TypeError::New(env, "No file name is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	K2hNode*		obj				= Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
-	Nan::Utf8String	filename(info[0]);
-	bool			isfullmapping	= true;
-	int				mask_bitcnt		= K2HShm::MIN_MASK_BITCOUNT;
-	int				cmask_bitcnt	= K2HShm::DEFAULT_COLLISION_MASK_BITCOUNT;
-	int				max_element_cnt	= K2HShm::DEFAULT_MAX_ELEMENT_CNT;
-	size_t			pagesize		= K2HShm::MIN_PAGE_SIZE;
-	Nan::Callback*	callback		= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_OPENRW]);
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
 
+	std::string filename		= info[0].ToString().Utf8Value();
+	bool		isfullmapping	= true;
+	int			mask_bitcnt		= K2HShm::MIN_MASK_BITCOUNT;
+	int			cmask_bitcnt	= K2HShm::DEFAULT_COLLISION_MASK_BITCOUNT;
+	int			max_element_cnt	= K2HShm::DEFAULT_MAX_ELEMENT_CNT;
+	size_t		pagesize		= K2HShm::MIN_PAGE_SIZE;
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_OPENRW]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
+	}
+
+	// parse positional optional args
 	if(1 < info.Length()){
-		if(info[1]->IsFunction()){
+		if(info[1].IsFunction()){
 			if(2 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
 			}
-			callback		= new Nan::Callback(info[1].As<v8::Function>());
+			maybeCallback	= info[1].As<Napi::Function>();
+			hasCallback		= true;
 		}else{
-			isfullmapping	= Nan::To<bool>(info[1]).ToChecked();
+			isfullmapping	= info[1].ToBoolean().Value();
 		}
-	}
-	if(2 < info.Length()){
-		if(info[2]->IsFunction()){
-			if(3 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[2].As<v8::Function>());
-		}else{
-			mask_bitcnt		= Nan::To<int>(info[2]).ToChecked();
-		}
-	}
-	if(3 < info.Length()){
-		if(info[3]->IsFunction()){
-			if(4 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[3].As<v8::Function>());
-		}else{
-			cmask_bitcnt	= Nan::To<int>(info[3]).ToChecked();
-		}
-	}
-	if(4 < info.Length()){
-		if(info[4]->IsFunction()){
-			if(5 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[4].As<v8::Function>());
-		}else{
-			max_element_cnt	= Nan::To<int>(info[4]).ToChecked();
-		}
-	}
-	if(5 < info.Length()){
-		if(info[5]->IsFunction()){
-			if(6 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[5].As<v8::Function>());
-		}else{
-			pagesize		= Nan::To<int>(info[5]).ToChecked();
-		}
-	}
-	if(6 < info.Length()){
-		if(7 < info.Length() || !info[6]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
-		}
-		callback			= new Nan::Callback(info[6].As<v8::Function>());
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new OpenWorker(callback, &(obj->_k2hshm), *filename, false, false, false, isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize));
-		info.GetReturnValue().Set(Nan::True());
+	if(2 < info.Length()){
+		if(info[2].IsFunction()){
+			if(3 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[2].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			mask_bitcnt		= info[2].ToNumber().Int32Value();
+		}
+	}
+
+	if(3 < info.Length()){
+		if(info[3].IsFunction()){
+			if(4 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[3].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			cmask_bitcnt	= info[3].ToNumber().Int32Value();
+		}
+	}
+
+	if(4 < info.Length()){
+		if(info[4].IsFunction()){
+			if(5 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[4].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			max_element_cnt	= info[4].ToNumber().Int32Value();
+		}
+	}
+
+	if(5 < info.Length()){
+		if(info[5].IsFunction()){
+			if(6 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[5].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			pagesize		= static_cast<size_t>(info[5].ToNumber().Int64Value());
+		}
+	}
+
+	if(6 < info.Length()){
+		if(7 < info.Length() || !info[6].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
+		}
+		maybeCallback	= info[6].As<Napi::Function>();
+		hasCallback		= true;
+	}
+
+	// Execute
+	if(hasCallback){
+		OpenAsyncWorker* worker = new OpenAsyncWorker(maybeCallback, &(obj->_k2hshm), filename, false, false, false, isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize);
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
-		info.GetReturnValue().Set(Nan::New(obj->_k2hshm.Attach(*filename, false, false, false, isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize)));
+		bool result = obj->_k2hshm.Attach(filename.c_str(), false, false, false, isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize);
+		return Napi::Boolean::New(env, result);
 	}
 }
 
@@ -1407,90 +1595,121 @@ NAN_METHOD(K2hNode::OpenRW)
  *
  */
 
-NAN_METHOD(K2hNode::OpenRO)
+Napi::Value K2hNode::OpenRO(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("No file name is specified.");
+		Napi::TypeError::New(env, "No file name is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	K2hNode*		obj				= Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
-	Nan::Utf8String	filename(info[0]);
-	bool			isfullmapping	= true;
-	int				mask_bitcnt		= K2HShm::MIN_MASK_BITCOUNT;
-	int				cmask_bitcnt	= K2HShm::DEFAULT_COLLISION_MASK_BITCOUNT;
-	int				max_element_cnt	= K2HShm::DEFAULT_MAX_ELEMENT_CNT;
-	size_t			pagesize		= K2HShm::MIN_PAGE_SIZE;
-	Nan::Callback*	callback		= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_OPENRO]);
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
 
+	std::string	filename		= info[0].ToString().Utf8Value();
+	bool		isfullmapping	= true;
+	int			mask_bitcnt		= K2HShm::MIN_MASK_BITCOUNT;
+	int			cmask_bitcnt	= K2HShm::DEFAULT_COLLISION_MASK_BITCOUNT;
+	int			max_element_cnt	= K2HShm::DEFAULT_MAX_ELEMENT_CNT;
+	size_t		pagesize		= K2HShm::MIN_PAGE_SIZE;
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_OPENRO]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
+	}
+
+	// parse positional optional args
 	if(1 < info.Length()){
-		if(info[1]->IsFunction()){
+		if(info[1].IsFunction()){
 			if(2 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
 			}
-			callback		= new Nan::Callback(info[1].As<v8::Function>());
+			maybeCallback	= info[1].As<Napi::Function>();
+			hasCallback		= true;
 		}else{
-			isfullmapping	= Nan::To<bool>(info[1]).ToChecked();
+			isfullmapping	= info[1].ToBoolean().Value();
 		}
-	}
-	if(2 < info.Length()){
-		if(info[2]->IsFunction()){
-			if(3 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[2].As<v8::Function>());
-		}else{
-			mask_bitcnt		= Nan::To<int>(info[2]).ToChecked();
-		}
-	}
-	if(3 < info.Length()){
-		if(info[3]->IsFunction()){
-			if(4 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[3].As<v8::Function>());
-		}else{
-			cmask_bitcnt	= Nan::To<int>(info[3]).ToChecked();
-		}
-	}
-	if(4 < info.Length()){
-		if(info[4]->IsFunction()){
-			if(5 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[4].As<v8::Function>());
-		}else{
-			max_element_cnt	= Nan::To<int>(info[4]).ToChecked();
-		}
-	}
-	if(5 < info.Length()){
-		if(info[5]->IsFunction()){
-			if(6 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[5].As<v8::Function>());
-		}else{
-			pagesize		= Nan::To<int>(info[5]).ToChecked();
-		}
-	}
-	if(6 < info.Length()){
-		if(7 < info.Length() || !info[6]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
-		}
-		callback			= new Nan::Callback(info[6].As<v8::Function>());
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new OpenWorker(callback, &(obj->_k2hshm), *filename, true, false, false, isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize));
-		info.GetReturnValue().Set(Nan::True());
+	if(2 < info.Length()){
+		if(info[2].IsFunction()){
+			if(3 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[2].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			mask_bitcnt		= info[2].ToNumber().Int32Value();
+		}
+	}
+
+	if(3 < info.Length()){
+		if(info[3].IsFunction()){
+			if(4 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[3].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			cmask_bitcnt	= info[3].ToNumber().Int32Value();
+		}
+	}
+
+	if(4 < info.Length()){
+		if(info[4].IsFunction()){
+			if(5 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[4].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			max_element_cnt	= info[4].ToNumber().Int32Value();
+		}
+	}
+
+	if(5 < info.Length()){
+		if(info[5].IsFunction()){
+			if(6 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[5].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			pagesize		= static_cast<size_t>(info[5].ToNumber().Int64Value());
+		}
+	}
+
+	if(6 < info.Length()){
+		if(7 < info.Length() || !info[6].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
+		}
+		maybeCallback	= info[6].As<Napi::Function>();
+		hasCallback		= true;
+	}
+
+	// Execute
+	if(hasCallback){
+		OpenAsyncWorker* worker = new OpenAsyncWorker(maybeCallback, &(obj->_k2hshm), filename, true, false, false, isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize);
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
-		info.GetReturnValue().Set(Nan::New(obj->_k2hshm.Attach(*filename, true, false, false, isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize)));
+		bool result = obj->_k2hshm.Attach(filename.c_str(), true, false, false, isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize);
+		return Napi::Boolean::New(env, result);
 	}
 }
 
@@ -1532,90 +1751,121 @@ NAN_METHOD(K2hNode::OpenRO)
  *
  */
 
-NAN_METHOD(K2hNode::OpenTempfile)
+Napi::Value K2hNode::OpenTempfile(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("No file name is specified.");
+		Napi::TypeError::New(env, "No file name is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	K2hNode*		obj				= Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
-	Nan::Utf8String	filename(info[0]);
-	bool			isfullmapping	= true;
-	int				mask_bitcnt		= K2HShm::MIN_MASK_BITCOUNT;
-	int				cmask_bitcnt	= K2HShm::DEFAULT_COLLISION_MASK_BITCOUNT;
-	int				max_element_cnt	= K2HShm::DEFAULT_MAX_ELEMENT_CNT;
-	size_t			pagesize		= K2HShm::MIN_PAGE_SIZE;
-	Nan::Callback*	callback		= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_OPENTEMP]);
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
 
+	std::string	filename		= info[0].ToString().Utf8Value();
+	bool		isfullmapping	= true;
+	int			mask_bitcnt		= K2HShm::MIN_MASK_BITCOUNT;
+	int			cmask_bitcnt	= K2HShm::DEFAULT_COLLISION_MASK_BITCOUNT;
+	int			max_element_cnt	= K2HShm::DEFAULT_MAX_ELEMENT_CNT;
+	size_t		pagesize		= K2HShm::MIN_PAGE_SIZE;
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_OPENTEMP]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
+	}
+
+	// parse positional optional args
 	if(1 < info.Length()){
-		if(info[1]->IsFunction()){
+		if(info[1].IsFunction()){
 			if(2 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
 			}
-			callback		= new Nan::Callback(info[1].As<v8::Function>());
+			maybeCallback	= info[1].As<Napi::Function>();
+			hasCallback		= true;
 		}else{
-			isfullmapping	= Nan::To<bool>(info[1]).ToChecked();
+			isfullmapping	= info[1].ToBoolean().Value();
 		}
-	}
-	if(2 < info.Length()){
-		if(info[2]->IsFunction()){
-			if(3 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[2].As<v8::Function>());
-		}else{
-			mask_bitcnt		= Nan::To<int>(info[2]).ToChecked();
-		}
-	}
-	if(3 < info.Length()){
-		if(info[3]->IsFunction()){
-			if(4 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[3].As<v8::Function>());
-		}else{
-			cmask_bitcnt	= Nan::To<int>(info[3]).ToChecked();
-		}
-	}
-	if(4 < info.Length()){
-		if(info[4]->IsFunction()){
-			if(5 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[4].As<v8::Function>());
-		}else{
-			max_element_cnt	= Nan::To<int>(info[4]).ToChecked();
-		}
-	}
-	if(5 < info.Length()){
-		if(info[5]->IsFunction()){
-			if(6 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[5].As<v8::Function>());
-		}else{
-			pagesize		= Nan::To<int>(info[5]).ToChecked();
-		}
-	}
-	if(6 < info.Length()){
-		if(7 < info.Length() || !info[6]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
-		}
-		callback			= new Nan::Callback(info[6].As<v8::Function>());
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new OpenWorker(callback, &(obj->_k2hshm), *filename, false, false, true, isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize));
-		info.GetReturnValue().Set(Nan::True());
+	if(2 < info.Length()){
+		if(info[2].IsFunction()){
+			if(3 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[2].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			mask_bitcnt		= info[2].ToNumber().Int32Value();
+		}
+	}
+
+	if(3 < info.Length()){
+		if(info[3].IsFunction()){
+			if(4 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[3].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			cmask_bitcnt	= info[3].ToNumber().Int32Value();
+		}
+	}
+
+	if(4 < info.Length()){
+		if(info[4].IsFunction()){
+			if(5 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[4].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			max_element_cnt	= info[4].ToNumber().Int32Value();
+		}
+	}
+
+	if(5 < info.Length()){
+		if(info[5].IsFunction()){
+			if(6 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[5].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			pagesize		= static_cast<size_t>(info[5].ToNumber().Int64Value());
+		}
+	}
+
+	if(6 < info.Length()){
+		if(7 < info.Length() || !info[6].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
+		}
+		maybeCallback	= info[6].As<Napi::Function>();
+		hasCallback		= true;
+	}
+
+	// Execute
+	if(hasCallback){
+		OpenAsyncWorker* worker = new OpenAsyncWorker(maybeCallback, &(obj->_k2hshm), filename, false, false, true, isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize);
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
-		info.GetReturnValue().Set(Nan::New(obj->_k2hshm.Attach(*filename, false, false, true, isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize)));
+		bool result = obj->_k2hshm.Attach(filename.c_str(), false, false, true, isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize);
+		return Napi::Boolean::New(env, result);
 	}
 }
 
@@ -1650,73 +1900,101 @@ NAN_METHOD(K2hNode::OpenTempfile)
  *
  */
 
-NAN_METHOD(K2hNode::OpenMem)
+Napi::Value K2hNode::OpenMem(const Napi::CallbackInfo& info)
 {
-	K2hNode*		obj				= Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
-	int				mask_bitcnt		= K2HShm::MIN_MASK_BITCOUNT;
-	int				cmask_bitcnt	= K2HShm::DEFAULT_COLLISION_MASK_BITCOUNT;
-	int				max_element_cnt	= K2HShm::DEFAULT_MAX_ELEMENT_CNT;
-	size_t			pagesize		= K2HShm::MIN_PAGE_SIZE;
-	Nan::Callback*	callback		= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_OPENMEM]);
+	Napi::Env env = info.Env();
+
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	int		mask_bitcnt		= K2HShm::MIN_MASK_BITCOUNT;
+	int		cmask_bitcnt	= K2HShm::DEFAULT_COLLISION_MASK_BITCOUNT;
+	int		max_element_cnt	= K2HShm::DEFAULT_MAX_ELEMENT_CNT;
+	size_t	pagesize		= K2HShm::MIN_PAGE_SIZE;
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_OPENMEM]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
+	}
+
+	// parse positional optional args
+	if(0 < info.Length()){
+		if(info[0].IsFunction()){
+			if(1 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[0].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			mask_bitcnt		= info[0].ToNumber().Int32Value();
+		}
+	}
 
 	if(1 < info.Length()){
-		if(info[1]->IsFunction()){
+		if(info[1].IsFunction()){
 			if(2 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
 			}
-			callback		= new Nan::Callback(info[1].As<v8::Function>());
+			maybeCallback	= info[1].As<Napi::Function>();
+			hasCallback		= true;
 		}else{
-			mask_bitcnt		= Nan::To<int>(info[1]).ToChecked();
+			cmask_bitcnt	= info[1].ToNumber().Int32Value();
 		}
-	}
-	if(2 < info.Length()){
-		if(info[2]->IsFunction()){
-			if(3 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[2].As<v8::Function>());
-		}else{
-			cmask_bitcnt	= Nan::To<int>(info[2]).ToChecked();
-		}
-	}
-	if(3 < info.Length()){
-		if(info[3]->IsFunction()){
-			if(4 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[3].As<v8::Function>());
-		}else{
-			max_element_cnt	= Nan::To<int>(info[3]).ToChecked();
-		}
-	}
-	if(4 < info.Length()){
-		if(info[4]->IsFunction()){
-			if(5 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback		= new Nan::Callback(info[4].As<v8::Function>());
-		}else{
-			pagesize		= Nan::To<int>(info[4]).ToChecked();
-		}
-	}
-	if(5 < info.Length()){
-		if(6 < info.Length() || !info[5]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
-		}
-		callback			= new Nan::Callback(info[5].As<v8::Function>());
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new OpenWorker(callback, &(obj->_k2hshm), NULL, false, true, false, true, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize));
-		info.GetReturnValue().Set(Nan::True());
+	if(2 < info.Length()){
+		if(info[2].IsFunction()){
+			if(3 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[2].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			max_element_cnt	= info[2].ToNumber().Int32Value();
+		}
+	}
+
+	if(3 < info.Length()){
+		if(info[3].IsFunction()){
+			if(4 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[3].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			pagesize		= static_cast<size_t>(info[3].ToNumber().Int64Value());
+		}
+	}
+
+	if(4 < info.Length()){
+		if(5 < info.Length() || !info[4].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
+		}
+		maybeCallback	= info[4].As<Napi::Function>();
+		hasCallback		= true;
+	}
+
+	// Execute
+	if(hasCallback){
+		OpenAsyncWorker* worker = new OpenAsyncWorker(maybeCallback, &(obj->_k2hshm), std::string(""), false, true, false, true, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize);
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
-		info.GetReturnValue().Set(Nan::New(obj->_k2hshm.Attach(NULL, false, true, false, true, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize)));
+		bool result = obj->_k2hshm.Attach(nullptr, false, true, false, true, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize);
+		return Napi::Boolean::New(env, result);
 	}
 }
 
@@ -1739,31 +2017,50 @@ NAN_METHOD(K2hNode::OpenMem)
  * var k2hash = require('bindings')('k2hash') ;
  * var k2h = k2hash() ;
  * k2h.OpenMem() ;
- * k2h.SetValue('key','val') ;
+ * k2h.SetValue('key', 'val') ;
  * console_log( k2h.GetValue('key') ) ;
  * k2h.Close() ;
  * @endcode
  */
 
-NAN_METHOD(K2hNode::Close)
+Napi::Value K2hNode::Close(const Napi::CallbackInfo& info)
 {
-	K2hNode*		obj		= Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
-	Nan::Callback*	callback= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_CLOSE]);
+	Napi::Env env = info.Env();
 
-	if(0 < info.Length()){
-		if(1 < info.Length() || !info[0]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
-		}
-		callback = new Nan::Callback(info[0].As<v8::Function>());
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_CLOSE]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new CloseWorker(callback, &(obj->_k2hshm)));
-		info.GetReturnValue().Set(Nan::True());
+	// parse positional optional args
+	if(0 < info.Length()){
+		if(1 < info.Length() || !info[0].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
+		}
+		maybeCallback	= info[0].As<Napi::Function>();
+		hasCallback		= true;
+	}
+
+	// Execute
+	if(hasCallback){
+		CloseAsyncWorker* worker = new CloseAsyncWorker(maybeCallback, &(obj->_k2hshm));
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
-		info.GetReturnValue().Set(Nan::New(obj->_k2hshm.Detach()));
+		bool result = obj->_k2hshm.Detach();
+		return Napi::Boolean::New(env, result);
 	}
 }
 
@@ -1796,87 +2093,110 @@ NAN_METHOD(K2hNode::Close)
  * var k2hash = require('bindings')('k2hash') ;
  * var k2h = k2hash() ;
  * k2h.OpenMem() ;
- * k2h.SetValue('key','val') ;
+ * k2h.SetValue('key', 'val') ;
  * console_log( k2h.GetValue('key') ) ;
  * k2h.Close() ;
  * @endcode
  */
 
-NAN_METHOD(K2hNode::GetValue)
+Napi::Value K2hNode::GetValue(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("No key name is specified.");
-		return;
+		Napi::TypeError::New(env, "No key name is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	K2hNode*		obj				= Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
-	string			strkey;
-	bool			is_subkey_set	= false;
-	string			strsubkey;
-	bool			attrchk			= true;
-	bool			is_pass_set		= false;
-	string			strpass;
-	Nan::Callback*	callback		= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_GET]);
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
 
-	if(info[0]->IsNull()){
-		Nan::ThrowSyntaxError("key is empty.");
-		return;
+	std::string	strkey;
+	bool		is_subkey_set	= false;
+	std::string	strsubkey;
+	bool		attrchk			= true;
+	bool		is_pass_set		= false;
+	std::string	strpass;
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_GET]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
+	}
+
+	// parse positional optional args
+	if(info[0].IsNull()){
+		Napi::TypeError::New(env, "key is empty.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}else{
-		Nan::Utf8String	buf(info[0]);
-		strkey				= std::string(*buf);
+		strkey = info[0].ToString().Utf8Value();
 	}
+
 	if(1 < info.Length()){
-		if(info[1]->IsFunction()){
+		if(info[1].IsFunction()){
 			if(2 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
 			}
-			callback		= new Nan::Callback(info[1].As<v8::Function>());
-		}else if(!info[1]->IsNull()){
-			Nan::Utf8String	buf(info[1]);
-			strsubkey		= std::string(*buf);
+			maybeCallback	= info[1].As<Napi::Function>();
+			hasCallback		= true;
+		}else if(!info[1].IsNull()){
+			strsubkey		= info[1].ToString().Utf8Value();
 			is_subkey_set	= true;
 		}
 	}
+
 	if(2 < info.Length()){
-		if(info[2]->IsFunction()){
+		if(info[2].IsFunction()){
 			if(3 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
 			}
-			callback		= new Nan::Callback(info[2].As<v8::Function>());
-		}else if(info[2]->IsBoolean()){
-			attrchk			= Nan::To<bool>(info[2]).ToChecked();
+			maybeCallback	= info[2].As<Napi::Function>();
+			hasCallback		= true;
+		}else if(info[2].IsBoolean()){
+			attrchk			= info[2].ToBoolean().Value();
 		}else{
-			Nan::ThrowSyntaxError("Third parameter must be boolean.");
-			return;
+			Napi::TypeError::New(env, "Third parameter must be boolean.").ThrowAsJavaScriptException();
+			return env.Undefined();
 		}
 	}
+
 	if(3 < info.Length()){
-		if(info[3]->IsFunction()){
+		if(info[3].IsFunction()){
 			if(4 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
 			}
-			callback		= new Nan::Callback(info[3].As<v8::Function>());
-		}else if(!info[3]->IsNull()){
-			Nan::Utf8String	buf(info[3]);
-			strpass			= std::string(*buf);
+			maybeCallback	= info[3].As<Napi::Function>();
+			hasCallback		= true;
+		}else if(!info[3].IsNull()){
+			strpass			= info[3].ToString().Utf8Value();
 			is_pass_set		= true;
 		}
 	}
+
 	if(4 < info.Length()){
-		if(5 < info.Length() || !info[4]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
+		if(5 < info.Length() || !info[4].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
 		}
-		callback			= new Nan::Callback(info[4].As<v8::Function>());
+		maybeCallback	= info[4].As<Napi::Function>();
+		hasCallback		= true;
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new GetValueWorker(callback, &(obj->_k2hshm), strkey.c_str(), (is_subkey_set ? strsubkey.c_str() : NULL), attrchk, (is_pass_set ? strpass.c_str() : NULL)));
-		info.GetReturnValue().Set(Nan::True());
+	// Execute
+	if(hasCallback){
+		GetValueAsyncWorker* worker = new GetValueAsyncWorker(maybeCallback, &(obj->_k2hshm), strkey.c_str(), (is_subkey_set ? strsubkey.c_str() : NULL), attrchk, (is_pass_set ? strpass.c_str() : NULL));
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
 		if(is_subkey_set){
 			// subkey is specified, thus need to check the key has it.
@@ -1894,18 +2214,18 @@ NAN_METHOD(K2hNode::GetValue)
 				delete sk;
 			}
 			if(!found){
-				info.GetReturnValue().Set(Nan::Undefined());
-				return;
+				return env.Undefined();
 			}
 			strkey = strsubkey;
 		}
 
 		char*	presult = obj->_k2hshm.Get(strkey.c_str(), attrchk, (is_pass_set ? strpass.c_str() : NULL));
 		if(presult){
-			info.GetReturnValue().Set(Nan::New<String>(presult).ToLocalChecked());
+			Napi::String result = Napi::String::New(env, presult, static_cast<size_t>(strlen(presult)));
 			K2H_Free(presult);
+			return result;
 		}else{
-			info.GetReturnValue().Set(Nan::Null());
+			return env.Null();
 		}
 	}
 }
@@ -1930,53 +2250,71 @@ NAN_METHOD(K2hNode::GetValue)
  *
  */
 
-NAN_METHOD(K2hNode::GetSubkeys)
+Napi::Value K2hNode::GetSubkeys(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("No key name is specified.");
-		return;
+		Napi::TypeError::New(env, "No key name is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	K2hNode*		obj		= Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
-	string			strkey;
-	Nan::Callback*	callback= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_GETSUBKEYS]);
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
 
-	if(info[0]->IsNull()){
-		Nan::ThrowSyntaxError("key is empty.");
-		return;
+	std::string	strkey;
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_GETSUBKEYS]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
+	}
+
+	// parse positional optional args
+	if(info[0].IsNull()){
+		Napi::TypeError::New(env, "key is empty.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}else{
-		Nan::Utf8String	buf(info[0]);
-		strkey			= std::string(*buf);
-	}
-	if(1 < info.Length()){
-		if(2 < info.Length() || !info[1]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
-		}
-		callback		= new Nan::Callback(info[1].As<v8::Function>());
+		strkey = info[0].ToString().Utf8Value();
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new GetSubkeysWorker(callback, &(obj->_k2hshm), strkey.c_str()));
-		info.GetReturnValue().Set(Nan::True());
+	if(1 < info.Length()){
+		if(2 < info.Length() || !info[1].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
+		}
+		maybeCallback	= info[1].As<Napi::Function>();
+		hasCallback		= true;
+	}
+
+	// Execute
+	if(hasCallback){
+		GetSubkeysAsyncWorker* worker = new GetSubkeysAsyncWorker(maybeCallback, &(obj->_k2hshm), strkey.c_str());
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
 		K2HSubKeys*	sk = obj->_k2hshm.GetSubKeys(strkey.c_str());
 		if(!sk){
-			info.GetReturnValue().Set(Nan::Null());
-			return;
+			return env.Null();
 		}
 		strarr_t	strarr;
 		sk->StringArray(strarr);
 
-		Local<Array>	retarr	= Nan::New<Array>();
-		int				pos		= 0 ;
+		Napi::Array	retarr	= Napi::Array::New(env, static_cast<size_t>(strarr.size()));
+		uint32_t	pos		= 0;
 		for(strarr_t::const_iterator iter = strarr.begin(); iter != strarr.end(); ++iter, ++pos){
-			Nan::Set(retarr, pos, Nan::New<String>(iter->c_str()).ToLocalChecked());
+			retarr.Set(pos, Napi::String::New(env, iter->c_str(), static_cast<size_t>(strlen(iter->c_str()))));
 		}
 		delete sk;
 
-		info.GetReturnValue().Set(retarr);
+		return retarr;
 	}
 }
 
@@ -2014,103 +2352,128 @@ NAN_METHOD(K2hNode::GetSubkeys)
  * var k2hash = require('bindings')('k2hash') ;
  * var k2h = k2hash() ;
  * k2h.OpenMem() ;
- * k2h.SetValue('key','val') ;
+ * k2h.SetValue('key', 'val') ;
  * console_log( k2h.GetValue('key') ) ;
  * k2h.Close() ;
  * @endcode
  */
 
-NAN_METHOD(K2hNode::SetValue)
+Napi::Value K2hNode::SetValue(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
 	if(info.Length() < 2){
-		Nan::ThrowSyntaxError("No key name or no value are specified.");
-		return;
+		Napi::TypeError::New(env, "No key name or no value are specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	K2hNode*		obj			= Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
-	string			strkey;
-	bool			is_val_set	= false;
-	string			strval;
-	bool			is_skey_set	= false;
-	string			strsubkey;
-	bool			is_pass_set	= false;
-	string			strpass;
-	time_t			expire		= 0;
-	Nan::Callback*	callback	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_SET]);
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
 
-	if(info[0]->IsNull()){
-		Nan::ThrowSyntaxError("key is empty.");
-		return;
+	std::string	strkey;
+	bool		is_val_set = false;
+	std::string	strval;
+	bool		is_skey_set = false;
+	std::string	strsubkey;
+	bool		is_pass_set = false;
+	std::string	strpass;
+	time_t		expire = 0;
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_SET]);
+	if(emitterCbRef){
+		maybeCallback = emitterCbRef->Value();
+		hasCallback = true;
+	}
+
+	// parse positional optional args
+	if(info[0].IsNull()){
+		Napi::TypeError::New(env, "key is empty.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}else{
-		Nan::Utf8String	buf(info[0]);
-		strkey					= std::string(*buf);
+		strkey = info[0].ToString().Utf8Value();
 	}
-	if(!info[1]->IsNull()){
-		Nan::Utf8String	buf(info[1]);
-		strval					= std::string(*buf);
-		is_val_set				= true;
+
+	if(!info[1].IsNull()){
+		strval		= info[1].ToString().Utf8Value();
+		is_val_set	= true;
 	}
+
 	if(2 < info.Length()){
-		if(info[2]->IsFunction()){
+		if(info[2].IsFunction()){
 			if(3 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
 			}
-			callback			= new Nan::Callback(info[2].As<v8::Function>());
-		}else if(!info[2]->IsNull()){
-			Nan::Utf8String	buf(info[2]);
-			strsubkey			= std::string(*buf);
-			is_skey_set			= true;
+			maybeCallback	= info[2].As<Napi::Function>();
+			hasCallback		= true;
+		}else if(!info[2].IsNull()){
+			strsubkey	= info[2].ToString().Utf8Value();
+			is_skey_set	= true;
 		}
-	}
-	if(3 < info.Length()){
-		if(info[3]->IsFunction()){
-			if(4 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback			= new Nan::Callback(info[3].As<v8::Function>());
-		}else if(!info[3]->IsNull()){
-			Nan::Utf8String	buf(info[3]);
-			strpass				= std::string(*buf);
-			is_pass_set			= true;
-		}
-	}
-	if(4 < info.Length()){
-		if(info[4]->IsFunction()){
-			if(5 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback			= new Nan::Callback(info[4].As<v8::Function>());
-		}else if(info[4]->IsInt32()){
-			int	nexpire			= Nan::To<int32_t>(info[4]).ToChecked();
-			expire				= static_cast<time_t>(nexpire);
-		}else{
-			Nan::ThrowSyntaxError("Expire parameter must be int32 value.");
-			return;
-		}
-	}
-	if(5 < info.Length()){
-		if(6 < info.Length() || !info[5]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
-		}
-		callback				= new Nan::Callback(info[5].As<v8::Function>());
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new SetValueWorker(callback, &(obj->_k2hshm), strkey.c_str(), (is_skey_set ? strsubkey.c_str() : NULL), (is_val_set ? strval.c_str() : NULL), (is_pass_set ? strpass.c_str() : NULL), (expire > 0 ? &expire : NULL)));
-		info.GetReturnValue().Set(Nan::True());
+	if(3 < info.Length()){
+		if(info[3].IsFunction()){
+			if(4 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[3].As<Napi::Function>();
+			hasCallback		= true;
+		}else if(!info[3].IsNull()){
+			strpass		= info[3].ToString().Utf8Value();
+			is_pass_set	= true;
+		}
+	}
+
+	if(4 < info.Length()){
+		if(info[4].IsFunction()){
+			if(5 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[4].As<Napi::Function>();
+			hasCallback		= true;
+		}else if(info[4].IsNumber()){
+			int32_t	nexpire	= info[4].ToNumber().Int32Value();
+			expire			= static_cast<time_t>(nexpire);
+		}else{
+			Napi::TypeError::New(env, "Expire parameter must be int32 value.").ThrowAsJavaScriptException();
+			return env.Undefined();
+		}
+	}
+
+	if(5 < info.Length()){
+		if(6 < info.Length() || !info[5].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
+		}
+		maybeCallback	= info[5].As<Napi::Function>();
+		hasCallback		= true;
+	}
+
+	// Execute
+	if(hasCallback){
+		SetValueAsyncWorker* worker = new SetValueAsyncWorker(maybeCallback, &(obj->_k2hshm), strkey.c_str(), (is_skey_set ? strsubkey.c_str() : NULL), (is_val_set ? strval.c_str() : NULL), (is_pass_set ? strpass.c_str() : NULL), (expire > 0 ? &expire : NULL));
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
+		bool result;
 		if(is_skey_set){
 			// subkey is specified
-			info.GetReturnValue().Set(Nan::New(obj->_k2hshm.AddSubkey(strkey.c_str(), strsubkey.c_str(), (is_val_set ? strval.c_str() : NULL), (is_pass_set ? strpass.c_str() : NULL), (expire > 0 ? &expire : NULL))));
+			result = obj->_k2hshm.AddSubkey(strkey.c_str(), strsubkey.c_str(), (is_val_set ? strval.c_str() : NULL), (is_pass_set ? strpass.c_str() : NULL), (expire > 0 ? &expire : NULL));
 		}else{
 			// subkey is not specified
-			info.GetReturnValue().Set(Nan::New(obj->_k2hshm.Set(strkey.c_str(), (is_val_set ? strval.c_str() : NULL), (is_pass_set ? strpass.c_str() : NULL), (expire > 0 ? &expire : NULL))));
+			result = obj->_k2hshm.Set(strkey.c_str(), (is_val_set ? strval.c_str() : NULL), (is_pass_set ? strpass.c_str() : NULL), (expire > 0 ? &expire : NULL));
 		}
+		return Napi::Boolean::New(env, result);
 	}
 }
 
@@ -2138,61 +2501,82 @@ NAN_METHOD(K2hNode::SetValue)
  *
  */
 
-NAN_METHOD(K2hNode::AddSubkey)
+Napi::Value K2hNode::AddSubkey(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
 	if(info.Length() < 2){
-		Nan::ThrowSyntaxError("No key name or no subkey name are specified.");
-		return;
+		Napi::TypeError::New(env, "No key name or no subkey name are specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	K2hNode*		obj			= Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
-	string			strkey;
-	string			strsubkey;
-	bool			is_value_set= false;
-	string			strvalue;
-	Nan::Callback*	callback	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_ADDSUBKEY]);
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
 
-	if(info[0]->IsNull()){
-		Nan::ThrowSyntaxError("key is empty.");
-		return;
-	}else{
-		Nan::Utf8String	buf(info[0]);
-		strkey				= std::string(*buf);
+	std::string	strkey;
+	std::string	strsubkey;
+	bool		is_value_set = false;
+	std::string	strvalue;
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_ADDSUBKEY]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
 	}
-	if(info[1]->IsNull()){
-		Nan::ThrowSyntaxError("subkey is empty.");
-		return;
+
+	// parse positional optional args
+	if(info[0].IsNull()){
+		Napi::TypeError::New(env, "key is empty.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}else{
-		Nan::Utf8String	buf(info[1]);
-		strsubkey			= std::string(*buf);
+		strkey = info[0].ToString().Utf8Value();
 	}
+
+	if(info[1].IsNull()){
+		Napi::TypeError::New(env, "subkey is empty.").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}else{
+		strsubkey = info[1].ToString().Utf8Value();
+	}
+
 	if(2 < info.Length()){
-		if(info[2]->IsFunction()){
+		if(info[2].IsFunction()){
 			if(3 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
 			}
-			callback		= new Nan::Callback(info[2].As<v8::Function>());
-		}else if(!info[2]->IsNull()){
-			Nan::Utf8String	buf(info[2]);
-			strvalue		= std::string(*buf);
+			maybeCallback	= info[2].As<Napi::Function>();
+			hasCallback		= true;
+		}else if(!info[2].IsNull()){
+			strvalue		= info[2].ToString().Utf8Value();
 			is_value_set	= true;
 		}
 	}
+
 	if(3 < info.Length()){
-		if(4 < info.Length() || !info[3]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
+		if(4 < info.Length() || !info[3].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
 		}
-		callback			= new Nan::Callback(info[3].As<v8::Function>());
+		maybeCallback	= info[3].As<Napi::Function>();
+		hasCallback		= true;
 	}
 
 	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new AddSubkeyWorker(callback, &(obj->_k2hshm), strkey.c_str(), strsubkey.c_str(), (is_value_set ? strvalue.c_str() : NULL)));
-		info.GetReturnValue().Set(Nan::True());
+	if(hasCallback){
+		AddSubkeyAsyncWorker* worker = new AddSubkeyAsyncWorker(maybeCallback, &(obj->_k2hshm), strkey.c_str(), strsubkey.c_str(), (is_value_set ? strvalue.c_str() : NULL));
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
-		info.GetReturnValue().Set(Nan::New(obj->_k2hshm.AddSubkey(strkey.c_str(), strsubkey.c_str(), (is_value_set ? strvalue.c_str() : NULL))));
+		bool result = obj->_k2hshm.AddSubkey(strkey.c_str(), strsubkey.c_str(), (is_value_set ? strvalue.c_str() : NULL));
+		return Napi::Boolean::New(env, result);
 	}
 }
 
@@ -2220,71 +2604,91 @@ NAN_METHOD(K2hNode::AddSubkey)
  *
  */
 
-NAN_METHOD(K2hNode::AddSubkeys)
+Napi::Value K2hNode::AddSubkeys(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
 	if(info.Length() < 2){
-		Nan::ThrowSyntaxError("No key name or no subkeys array are specified.");
-		return;
+		Napi::TypeError::New(env, "No key name or no subkeys array are specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	K2hNode*		obj			= Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
-	string			strkey;
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	std::string		strkey;
 	unsigned char*	bySubkeys	= NULL;
 	size_t			skeylen		= 0UL;
-	Nan::Callback*	callback	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_ADDSUBKEYS]);
 
-	if(info[0]->IsNull()){
-		Nan::ThrowSyntaxError("key is empty.");
-		return;
-	}else{
-		Nan::Utf8String	buf(info[0]);
-		strkey					= std::string(*buf);
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_ADDSUBKEYS]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
 	}
-	if(!info[1]->IsArray()){
-		Nan::ThrowSyntaxError("Specified subkeys is not array.");
-		return;
+
+	// initial callback comes from emitter map if set
+	if(info[0].IsNull()){
+		Napi::TypeError::New(env, "key is empty.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}else{
-		Local<Array>	inSubkeys= Local<Array>::Cast(info[1]);
-		K2HSubKeys		Subkeys;
-		for(int pos = 0; pos < static_cast<int>(inSubkeys->Length()); ++pos){
-			string		tmpkey;
-			{
-				Nan::Utf8String	buf(Nan::Get(inSubkeys, pos).ToLocalChecked());
-				tmpkey = std::string(*buf);
-			}
+		strkey = info[0].ToString().Utf8Value();
+	}
+
+	if(!info[1].IsArray()){
+		Napi::TypeError::New(env, "Specified subkeys is not array.").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}else{
+		Napi::Array	inSubkeys	= info[1].As<Napi::Array>();
+		K2HSubKeys	Subkeys;
+		uint32_t	len			= inSubkeys.Length();
+		for(uint32_t pos = 0; pos < len; ++pos){
+			std::string tmpkey = inSubkeys.Get(pos).ToString().Utf8Value();
 			if(Subkeys.end() == Subkeys.insert(tmpkey.c_str())){
 				// failed to set subkey
-				info.GetReturnValue().Set(Nan::False());
-				return;
+				K2H_Free(bySubkeys);
+				return Napi::Boolean::New(env, false);
 			}
 		}
 		if(0UL >= Subkeys.size()){
 			// there is no subkey
-			info.GetReturnValue().Set(Nan::False());
-			return;
+			K2H_Free(bySubkeys);
+			return Napi::Boolean::New(env, false);
 		}
 		// serialize
 		if(!Subkeys.Serialize(&bySubkeys, skeylen)){
-			info.GetReturnValue().Set(Nan::False());
-			return;
+			K2H_Free(bySubkeys);
+			return Napi::Boolean::New(env, false);
 		}
-	}
-	if(2 < info.Length()){
-		if(3 < info.Length() || !info[2]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
-		}
-		callback				= new Nan::Callback(info[2].As<v8::Function>());
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new AddSubkeysWorker(callback, &(obj->_k2hshm), strkey.c_str(), bySubkeys, skeylen));
-		info.GetReturnValue().Set(Nan::True());
-	}else{
-		info.GetReturnValue().Set(Nan::New(obj->_k2hshm.ReplaceSubkeys(reinterpret_cast<const unsigned char*>(strkey.c_str()), strkey.length() + 1, bySubkeys, skeylen)));
+	if(2 < info.Length()){
+		if(3 < info.Length() || !info[2].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			K2H_Free(bySubkeys);
+			return env.Undefined();
+		}
+		maybeCallback	= info[2].As<Napi::Function>();
+		hasCallback		= true;
 	}
-	K2H_Free(bySubkeys);
+
+	// Execute
+	if(hasCallback){
+		AddSubkeysAsyncWorker* worker = new AddSubkeysAsyncWorker(maybeCallback, &(obj->_k2hshm), strkey.c_str(), bySubkeys, skeylen);
+		worker->Queue();
+		K2H_Free(bySubkeys);
+		return Napi::Boolean::New(env, true);
+	}else{
+		bool result = obj->_k2hshm.ReplaceSubkeys(reinterpret_cast<const unsigned char*>(strkey.c_str()), strkey.length() + 1, bySubkeys, skeylen);
+		K2H_Free(bySubkeys);
+		return Napi::Boolean::New(env, result);
+	}
 }
 
 /**
@@ -2310,57 +2714,79 @@ NAN_METHOD(K2hNode::AddSubkeys)
  *
  */
 
-NAN_METHOD(K2hNode::Remove)
+Napi::Value K2hNode::Remove(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("No key name is specified.");
-		return;
+		Napi::TypeError::New(env, "No key name is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	K2hNode*		obj				= Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
-	string			strkey;
-	bool			is_subkey_set	= false;
-	string			strsubkey;
-	Nan::Callback*	callback		= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_REMOVE]);
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
 
-	if(info[0]->IsNull()){
-		Nan::ThrowSyntaxError("key is empty.");
-		return;
+	std::string	strkey;
+	bool		is_subkey_set = false;
+	std::string	strsubkey;
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_REMOVE]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
+	}
+
+	// parse positional optional args
+	if(info[0].IsNull()){
+		Napi::TypeError::New(env, "key is empty.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}else{
-		Nan::Utf8String	buf(info[0]);
-		strkey						= std::string(*buf);
+		strkey = info[0].ToString().Utf8Value();
 	}
+
 	if(1 < info.Length()){
-		if(info[1]->IsFunction()){
+		if(info[1].IsFunction()){
 			if(2 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
 			}
-			callback				= new Nan::Callback(info[1].As<v8::Function>());
-		}else if(!info[1]->IsNull()){
-			Nan::Utf8String	buf(info[1]);
-			strsubkey				= std::string(*buf);
-			is_subkey_set			= true;
+			maybeCallback	= info[1].As<Napi::Function>();
+			hasCallback		= true;
+		}else if(!info[1].IsNull()){
+			strsubkey		= info[1].ToString().Utf8Value();
+			is_subkey_set	= true;
 		}
-	}
-	if(2 < info.Length()){
-		if(3 < info.Length() || !info[2]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
-		}
-		callback					= new Nan::Callback(info[2].As<v8::Function>());
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new RemoveWorker(callback, &(obj->_k2hshm), strkey.c_str(), (is_subkey_set ? strsubkey.c_str() : NULL), false));
-		info.GetReturnValue().Set(Nan::True());
-	}else{
-		if(is_subkey_set){
-			info.GetReturnValue().Set(Nan::New(obj->_k2hshm.Remove(strkey.c_str(), strsubkey.c_str())));
-		}else{
-			info.GetReturnValue().Set(Nan::New(obj->_k2hshm.Remove(strkey.c_str(), false)));
+	if(2 < info.Length()){
+		if(3 < info.Length() || !info[2].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
 		}
+		maybeCallback	= info[2].As<Napi::Function>();
+		hasCallback		= true;
+	}
+
+	// Execute
+	if(hasCallback){
+		RemoveAsyncWorker* worker = new RemoveAsyncWorker(maybeCallback, &(obj->_k2hshm), strkey.c_str(), (is_subkey_set ? strsubkey.c_str() : NULL), false);
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
+	}else{
+		bool result;
+		if(is_subkey_set){
+			result = obj->_k2hshm.Remove(strkey.c_str(), strsubkey.c_str());
+		}else{
+			result = obj->_k2hshm.Remove(strkey.c_str(), false);
+		}
+		return Napi::Boolean::New(env, result);
 	}
 }
 
@@ -2383,38 +2809,58 @@ NAN_METHOD(K2hNode::Remove)
  *
  */
 
-NAN_METHOD(K2hNode::RemoveAll)
+Napi::Value K2hNode::RemoveAll(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("No key name is specified.");
-		return;
+		Napi::TypeError::New(env, "No key name is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	K2hNode*		obj			= Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
-	string			strkey;
-	Nan::Callback*	callback	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_REMOVEALL]);
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
 
-	if(info[0]->IsNull()){
-		Nan::ThrowSyntaxError("key is empty.");
-		return;
+	std::string	strkey;
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_REMOVEALL]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
+	}
+
+	// parse positional optional args
+	if(info[0].IsNull()){
+		Napi::TypeError::New(env, "key is empty.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}else{
-		Nan::Utf8String	buf(info[0]);
-		strkey					= std::string(*buf);
+		strkey = info[0].ToString().Utf8Value();
 	}
+
 	if(1 < info.Length()){
-		if(2 < info.Length() || !info[1]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
+		if(2 < info.Length() || !info[1].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
 		}
-		callback				= new Nan::Callback(info[1].As<v8::Function>());
+		maybeCallback	= info[1].As<Napi::Function>();
+		hasCallback		= true;
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new RemoveWorker(callback, &(obj->_k2hshm), strkey.c_str(), NULL, true));
-		info.GetReturnValue().Set(Nan::True());
+	// Execute
+	if(hasCallback){
+		RemoveAsyncWorker* worker = new RemoveAsyncWorker(maybeCallback, &(obj->_k2hshm), strkey.c_str(), NULL, true);
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
-		info.GetReturnValue().Set(Nan::New(obj->_k2hshm.Remove(strkey.c_str(), true)));
+		bool result = obj->_k2hshm.Remove(strkey.c_str(), true);
+		return Napi::Boolean::New(env, result);
 	}
 }
 
@@ -2430,29 +2876,36 @@ NAN_METHOD(K2hNode::RemoveAll)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::PrintState)
+Napi::Value K2hNode::PrintState(const Napi::CallbackInfo& info)
 {
-	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
+	Napi::Env env = info.Env();
 
-	if(0 >= info.Length()){
-		info.GetReturnValue().Set(Nan::New(
-			obj->_k2hshm.PrintState()
-		));
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	// Execute
+	if(info.Length() <= 0){
+		bool result = obj->_k2hshm.PrintState();
+		return Napi::Boolean::New(env, result);
 	}else{
-		int		fd = info[0]->IsInt32() ? Nan::To<int32_t>(info[0]).ToChecked() : -1;
+		int		fd = info[0].IsNumber() ? info[0].ToNumber().Int32Value() : -1;
 		FILE*	fp = (-1 == fd ? stdout : fdopen(fd, "a"));
 		if(!fp){
-			Nan::ThrowError("could not open output stream.");
-			return;
+			Napi::Error::New(env, "could not open output stream.").ThrowAsJavaScriptException();
+			return env.Undefined();
 		}
 		bool result = obj->_k2hshm.PrintState(fp);
 
 		// [NOTE]
 		// Must flush at here, because nodejs's file descriptor is used for fd.
-		// Otherwise, calling flash on nodejs(javascript) is not effected.
+		// Otherwise, calling flush on nodejs(javascript) is not effected.
 		fflush(fp);
 
-		info.GetReturnValue().Set(result);
+		return Napi::Boolean::New(env, result);
 	}
 }
 
@@ -2468,22 +2921,25 @@ NAN_METHOD(K2hNode::PrintState)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::PrintVersion)
+Napi::Value K2hNode::PrintVersion(const Napi::CallbackInfo& info)
 {
-	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? Nan::To<int32_t>(info[0]).ToChecked() : -1;
-	FILE*		fp	= (-1 == fd ? stdout : fdopen(fd, "a"));
+	Napi::Env env = info.Env();
+
+	// Execute
+	int		fd = (0 < info.Length() && info[0].IsNumber()) ? info[0].ToNumber().Int32Value() : -1;
+	FILE*	fp = (-1 == fd ? stdout : fdopen(fd, "a"));
 	if(!fp){
-		Nan::ThrowError("could not open output stream.");
-		return;
+		Napi::Error::New(env, "could not open output stream.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 	k2h_print_version(fp);
 
 	// [NOTE]
 	// Must flush at here, because nodejs's file descriptor is used for fd.
-	// Otherwise, calling flash on nodejs(javascript) is not effected.
+	// Otherwise, calling flush on nodejs(javascript) is not effected.
 	fflush(fp);
 
-	info.GetReturnValue().Set(Nan::True());
+	return Napi::Boolean::New(env, true);
 }
 
 /**
@@ -2498,29 +2954,33 @@ NAN_METHOD(K2hNode::PrintVersion)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::DumpHead)
+Napi::Value K2hNode::DumpHead(const Napi::CallbackInfo& info)
 {
-	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
+	Napi::Env env = info.Env();
 
-	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? Nan::To<int32_t>(info[0]).ToChecked() : -1;
-	FILE*		fp	= (-1 == fd ? stdout : fdopen(fd, "a"));
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	// Execute
+	int		fd = (0 < info.Length() && info[0].IsNumber()) ? info[0].ToNumber().Int32Value() : -1;
+	FILE*	fp = (-1 == fd ? stdout : fdopen(fd, "a"));
 	if(!fp){
-		Nan::ThrowError("could not open output stream.");
-		return;
+		Napi::Error::New(env, "could not open output stream.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
 	//SetK2hDbgMode(K2HDBG_MSG);
-
-	info.GetReturnValue().Set(Nan::New(
-		obj->_k2hshm.Dump(fp, K2HShm::DUMP_HEAD)
-	));
-
+	obj->_k2hshm.Dump(fp, K2HShm::DUMP_HEAD);
 	//SetK2hDbgMode(K2HDBG_SILENT);
 
 	// Need to flush stream here!
-	fflush(fp) ;
+	fflush(fp);
 
-	info.GetReturnValue().Set(Nan::True());
+	return Napi::Boolean::New(env, true);
 }
 
 /**
@@ -2535,29 +2995,33 @@ NAN_METHOD(K2hNode::DumpHead)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::DumpKeytable)
+Napi::Value K2hNode::DumpKeytable(const Napi::CallbackInfo& info)
 {
-	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
+	Napi::Env env = info.Env();
 
-	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? Nan::To<int32_t>(info[0]).ToChecked() : -1;
-	FILE*		fp	= (-1 == fd ? stdout : fdopen(fd, "a"));
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	// Execute
+	int		fd = (0 < info.Length() && info[0].IsNumber()) ? info[0].ToNumber().Int32Value() : -1;
+	FILE*	fp = (-1 == fd ? stdout : fdopen(fd, "a"));
 	if(!fp){
-		Nan::ThrowError("could not open output stream.");
-		return;
+		Napi::Error::New(env, "could not open output stream.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
 	//SetK2hDbgMode(K2HDBG_MSG);
-
-	info.GetReturnValue().Set(Nan::New(
-		obj->_k2hshm.Dump(fp, K2HShm::DUMP_KINDEX_ARRAY)
-	));
-
+	obj->_k2hshm.Dump(fp, K2HShm::DUMP_KINDEX_ARRAY);
 	//SetK2hDbgMode(K2HDBG_SILENT);
 
 	// Need to flush stream here!
-	fflush(fp) ;
+	fflush(fp);
 
-	info.GetReturnValue().Set(Nan::True());
+	return Napi::Boolean::New(env, true);
 }
 
 /**
@@ -2572,29 +3036,33 @@ NAN_METHOD(K2hNode::DumpKeytable)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::DumpFullKeytable)
+Napi::Value K2hNode::DumpFullKeytable(const Napi::CallbackInfo& info)
 {
-	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
+	Napi::Env env = info.Env();
 
-	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? Nan::To<int32_t>(info[0]).ToChecked() : -1;
-	FILE*		fp	= (-1 == fd ? stdout : fdopen(fd, "a"));
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	// Execute
+	int		fd = (0 < info.Length() && info[0].IsNumber()) ? info[0].ToNumber().Int32Value() : -1;
+	FILE*	fp = (-1 == fd ? stdout : fdopen(fd, "a"));
 	if(!fp){
-		Nan::ThrowError("could not open output stream.");
-		return;
+		Napi::Error::New(env, "could not open output stream.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
 	//SetK2hDbgMode(K2HDBG_MSG);
-
-	info.GetReturnValue().Set(Nan::New(
-		obj->_k2hshm.Dump(fp, K2HShm::DUMP_CKINDEX_ARRAY)
-	));
-
+	obj->_k2hshm.Dump(fp, K2HShm::DUMP_CKINDEX_ARRAY);
 	//SetK2hDbgMode(K2HDBG_SILENT);
 
 	// Need to flush stream here!
-	fflush(fp) ;
+	fflush(fp);
 
-	info.GetReturnValue().Set(Nan::True());
+	return Napi::Boolean::New(env, true);
 }
 
 /**
@@ -2609,29 +3077,33 @@ NAN_METHOD(K2hNode::DumpFullKeytable)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::DumpElementtable)
+Napi::Value K2hNode::DumpElementtable(const Napi::CallbackInfo& info)
 {
-	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
+	Napi::Env env = info.Env();
 
-	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? Nan::To<int32_t>(info[0]).ToChecked() : -1;
-	FILE*		fp	= (-1 == fd ? stdout : fdopen(fd, "a"));
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	// Execute
+	int		fd = (0 < info.Length() && info[0].IsNumber()) ? info[0].ToNumber().Int32Value() : -1;
+	FILE*	fp = (-1 == fd ? stdout : fdopen(fd, "a"));
 	if(!fp){
-		Nan::ThrowError("could not open output stream.");
-		return;
+		Napi::Error::New(env, "could not open output stream.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
 	//SetK2hDbgMode(K2HDBG_MSG);
-
-	info.GetReturnValue().Set(Nan::New(
-		obj->_k2hshm.Dump(fp, K2HShm::DUMP_ELEMENT_LIST)
-	));
-
+	obj->_k2hshm.Dump(fp, K2HShm::DUMP_ELEMENT_LIST);
 	//SetK2hDbgMode(K2HDBG_SILENT);
 
 	// Need to flush stream here!
-	fflush(fp) ;
+	fflush(fp);
 
-	info.GetReturnValue().Set(Nan::True());
+	return Napi::Boolean::New(env, true);
 }
 
 /**
@@ -2646,29 +3118,33 @@ NAN_METHOD(K2hNode::DumpElementtable)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::DumpFull)
+Napi::Value K2hNode::DumpFull(const Napi::CallbackInfo& info)
 {
-	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
+	Napi::Env env = info.Env();
 
-	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? Nan::To<int32_t>(info[0]).ToChecked() : -1;
-	FILE*		fp	= (-1 == fd ? stdout : fdopen(fd, "a"));
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	// Execute
+	int		fd = (0 < info.Length() && info[0].IsNumber()) ? info[0].ToNumber().Int32Value() : -1;
+	FILE*	fp = (-1 == fd ? stdout : fdopen(fd, "a"));
 	if(!fp){
-		Nan::ThrowError("could not open output stream.");
-		return;
+		Napi::Error::New(env, "could not open output stream.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
 	//SetK2hDbgMode(K2HDBG_MSG);
-
-	info.GetReturnValue().Set(Nan::New(
-		obj->_k2hshm.Dump(fp, K2HShm::DUMP_PAGE_LIST)
-	));
-
+	obj->_k2hshm.Dump(fp, K2HShm::DUMP_PAGE_LIST);
 	//SetK2hDbgMode(K2HDBG_SILENT);
 
 	// Need to flush stream here!
-	fflush(fp) ;
+	fflush(fp);
 
-	info.GetReturnValue().Set(Nan::True());
+	return Napi::Boolean::New(env, true);
 }
 
 /**
@@ -2700,49 +3176,63 @@ NAN_METHOD(K2hNode::DumpFull)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::Transaction)
+Napi::Value K2hNode::Transaction(const Napi::CallbackInfo& info)
 {
-	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
+	Napi::Env env = info.Env();
 
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("Need to specify first parameter for dis/enable.");
-		return;
+		Napi::TypeError::New(env, "Need to specify first parameter for dis/enable.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	bool	enable = Nan::To<bool>(info[0]).ToChecked();
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	// parse positional optional args
+	bool	enable = info[0].ToBoolean().Value();
+
+	// Execute
 	if(enable){
 		std::string	transfile;
 		std::string	prefix;
 		std::string	param;
-		int			expire = (info.Length() < 5 || !info[4]->IsInt32()) ? 0	: Nan::To<int32_t>(info[4]).ToChecked();
+		int			expire = (info.Length() < 5 || !info[4].IsNumber()) ? 0 : info[4].ToNumber().Int32Value();
 
-		if(2 <= info.Length()){
-			Nan::Utf8String	buf(info[1]);
-			transfile = std::string(*buf);
+		if(1 < info.Length()){
+			transfile = info[1].ToString().Utf8Value();
 		}
-		if(3 <= info.Length()){
-			Nan::Utf8String	buf(info[2]);
-			prefix = std::string(*buf);
+		if(2 < info.Length()){
+			prefix = info[2].ToString().Utf8Value();
 		}
-		if(4 <= info.Length()){
-			Nan::Utf8String	buf(info[3]);
-			param = std::string(*buf);
+		if(3 < info.Length()){
+			param = info[3].ToString().Utf8Value();
 		}
 
-		info.GetReturnValue().Set(Nan::New(
-			obj->_k2hshm.EnableTransaction(
-				(transfile.empty()	? NULL	: transfile.c_str()),
-				(prefix.empty()		? NULL	: reinterpret_cast<const unsigned char*>(prefix.c_str())),
-				(prefix.empty()		? 0		: prefix.length()),
-				(param.empty()		? NULL	: reinterpret_cast<const unsigned char*>(param.c_str())),
-				(param.empty()		? 0		: param.length()),
-				(0 >= expire		? NULL	: reinterpret_cast<const time_t*>(&expire))
-			)
-		));
+		// cppcheck-suppress unmatchedSuppression
+		// cppcheck-suppress unreadVariable
+		time_t			expire_tt	= 0;
+		const time_t*	pexpire		= NULL;
+		if(0 < expire){
+			expire_tt	= static_cast<time_t>(expire);
+			pexpire		= &expire_tt;
+		}
+
+		bool	res = obj->_k2hshm.EnableTransaction(
+						(transfile.empty() ? NULL : transfile.c_str()),
+						(prefix.empty() ? NULL : reinterpret_cast<const unsigned char*>(prefix.c_str())),
+						(prefix.empty() ? 0 : prefix.length()),
+						(param.empty() ? NULL : reinterpret_cast<const unsigned char*>(param.c_str())),
+						(param.empty() ? 0 : param.length()),
+						(pexpire)
+					);
+		return Napi::Boolean::New(env, res);
 	}else{
-		info.GetReturnValue().Set(Nan::New(
-			obj->_k2hshm.DisableTransaction()
-		));
+		bool	res = obj->_k2hshm.DisableTransaction();
+		return Napi::Boolean::New(env, res);
 	}
 }
 
@@ -2766,38 +3256,54 @@ NAN_METHOD(K2hNode::Transaction)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::EnableTransaction)
+Napi::Value K2hNode::EnableTransaction(const Napi::CallbackInfo& info)
 {
-	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
+	Napi::Env env = info.Env();
 
-	std::string	transfile;
-	std::string	prefix;
-	std::string	param;
-	int			expire = (info.Length() < 4 || !info[4]->IsInt32()) ? 0	: Nan::To<int32_t>(info[3]).ToChecked();
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
 
-	if(1 <= info.Length()){
-		Nan::Utf8String	buf(info[0]);
-		transfile = std::string(*buf);
+	std::string		transfile;
+	std::string		prefix;
+	std::string		param;
+
+	// cppcheck-suppress unmatchedSuppression
+	// cppcheck-suppress unreadVariable
+	time_t			expire_tt = 0;
+	const time_t*	pexpire = NULL;
+
+	// parse positional optional args
+	if(0 < info.Length()){
+		transfile = info[0].ToString().Utf8Value();
 	}
-	if(2 <= info.Length()){
-		Nan::Utf8String	buf(info[1]);
-		prefix = std::string(*buf);
+	if(1 < info.Length()){
+		prefix = info[1].ToString().Utf8Value();
 	}
-	if(3 <= info.Length()){
-		Nan::Utf8String	buf(info[2]);
-		param = std::string(*buf);
+	if(2 < info.Length()){
+		param = info[2].ToString().Utf8Value();
+	}
+	if(3 < info.Length()&&info[3].IsNumber()){
+		int	nexpire = info[3].ToNumber().Int32Value();
+		if(0 < nexpire){
+			expire_tt	= static_cast<time_t>(nexpire);
+			pexpire		= &expire_tt;
+		}
 	}
 
-	info.GetReturnValue().Set(Nan::New(
-		obj->_k2hshm.EnableTransaction(
-			(transfile.empty()	? NULL	: transfile.c_str()),
-			(prefix.empty()		? NULL	: reinterpret_cast<const unsigned char*>(prefix.c_str())),
-			(prefix.empty()		? 0		: (prefix.length() + 1)),
-			(param.empty()		? NULL	: reinterpret_cast<const unsigned char*>(param.c_str())),
-			(param.empty()		? 0		: (param.length() + 1)),
-			(0 >= expire		? NULL	: reinterpret_cast<const time_t*>(&expire))
-		)
-	));
+	// Execute
+	bool	res = obj->_k2hshm.EnableTransaction(
+					(transfile.empty() ? NULL : transfile.c_str()),
+					(prefix.empty() ? NULL : reinterpret_cast<const unsigned char*>(prefix.c_str())),
+					(prefix.empty() ? 0 : (prefix.length() + 1)),
+					(param.empty() ? NULL : reinterpret_cast<const unsigned char*>(param.c_str())),
+					(param.empty() ? 0 : (param.length() + 1)),
+					pexpire
+				);
+	return Napi::Boolean::New(env, res);
 }
 
 /**
@@ -2808,13 +3314,20 @@ NAN_METHOD(K2hNode::EnableTransaction)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::DisableTransaction)
+Napi::Value K2hNode::DisableTransaction(const Napi::CallbackInfo& info)
 {
-	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
+	Napi::Env env = info.Env();
 
-	info.GetReturnValue().Set(Nan::New(
-		obj->_k2hshm.DisableTransaction()
-	));
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	// Execute
+	bool res = obj->_k2hshm.DisableTransaction();
+	return Napi::Boolean::New(env, res);
 }
 
 /**
@@ -2825,13 +3338,20 @@ NAN_METHOD(K2hNode::DisableTransaction)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::UnsetTransactionThreadPool)
+Napi::Value K2hNode::UnsetTransactionThreadPool(const Napi::CallbackInfo& info)
 {
-	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
+	Napi::Env env = info.Env();
 
-	info.GetReturnValue().Set(Nan::New(
-		obj->_k2hshm.UnsetTransThreadPool()
-	));
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	// Execute
+	bool res = obj->_k2hshm.UnsetTransThreadPool();
+	return Napi::Boolean::New(env, res);
 }
 
 /**
@@ -2842,13 +3362,20 @@ NAN_METHOD(K2hNode::UnsetTransactionThreadPool)
  * @return	Return count of transaction thread pool
  */
 
-NAN_METHOD(K2hNode::GetTransactionThreadPool)
+Napi::Value K2hNode::GetTransactionThreadPool(const Napi::CallbackInfo& info)
 {
-	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
+	Napi::Env env = info.Env();
 
-	info.GetReturnValue().Set(Nan::New(
-		obj->_k2hshm.GetTransThreadPool()
-	));
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	// Execute
+	int res = obj->_k2hshm.GetTransThreadPool();
+	return Napi::Number::New(env, res);
 }
 
 /**
@@ -2861,18 +3388,28 @@ NAN_METHOD(K2hNode::GetTransactionThreadPool)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::SetTransactionThreadPool)
+Napi::Value K2hNode::SetTransactionThreadPool(const Napi::CallbackInfo& info)
 {
-	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
+	Napi::Env env = info.Env();
 
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("Need to specify first parameter for count of pool.");
-		return;
+		Napi::TypeError::New(env, "Need to specify first parameter for count of pool.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	info.GetReturnValue().Set(Nan::New(
-		obj->_k2hshm.SetTransThreadPool(Nan::To<int>(info[0]).ToChecked())
-	));
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	// parse positional optional args
+	int	count	= info[0].ToNumber().Int32Value();
+
+	// Execute
+	bool	res	= obj->_k2hshm.SetTransThreadPool(count);
+	return Napi::Boolean::New(env, res);
 }
 
 /**
@@ -2898,53 +3435,75 @@ NAN_METHOD(K2hNode::SetTransactionThreadPool)
  *
  */
 
-NAN_METHOD(K2hNode::LoadArchive)
+Napi::Value K2hNode::LoadArchive(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("No file name is specified.");
-		return;
+		Napi::TypeError::New(env, "No file name is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	K2hNode*		obj			= Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
-	string			filename;
-	bool			errskip		= true;
-	Nan::Callback*	callback	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_LOAD]);
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
 
-	if(info[0]->IsNull()){
-		Nan::ThrowSyntaxError("file name is empty.");
-		return;
+	std::string	filename;
+	bool		errskip = true;
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_LOAD]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
+	}
+
+	// parse positional optional args
+	if(info[0].IsNull()){
+		Napi::TypeError::New(env, "file name is empty.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}else{
-		Nan::Utf8String	buf(info[0]);
-		filename				= std::string(*buf);
+		filename = info[0].ToString().Utf8Value();
 	}
+
 	if(1 < info.Length()){
-		if(info[1]->IsFunction()){
+		if(info[1].IsFunction()){
 			if(2 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
 			}
-			callback			= new Nan::Callback(info[1].As<v8::Function>());
-		}else if(info[1]->IsBoolean()){
-			errskip				= Nan::To<bool>(info[1]).ToChecked();
+			maybeCallback	= info[1].As<Napi::Function>();
+			hasCallback		= true;
+		}else if(info[1].IsBoolean()){
+			errskip			= info[1].ToBoolean().Value();
 		}else{
-			Nan::ThrowSyntaxError("Second parameter must be boolean.");
-			return;
+			Napi::TypeError::New(env, "Second parameter must be boolean.").ThrowAsJavaScriptException();
+			return env.Undefined();
 		}
-	}
-	if(2 < info.Length()){
-		if(3 < info.Length() || !info[2]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
-		}
-		callback				= new Nan::Callback(info[2].As<v8::Function>());
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new ArchiveWorker(callback, &(obj->_k2hshm), filename.c_str(), errskip, true));
-		info.GetReturnValue().Set(Nan::True());
+	if(2 < info.Length()){
+		if(3 < info.Length() || !info[2].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
+		}
+		maybeCallback	= info[2].As<Napi::Function>();
+		hasCallback		= true;
+	}
+
+	// Execute
+	if(hasCallback){
+		ArchiveAsyncWorker* worker = new ArchiveAsyncWorker(maybeCallback, &(obj->_k2hshm), filename.c_str(), errskip, true);
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
-		info.GetReturnValue().Set(Nan::New(k2h_load_archive(reinterpret_cast<k2h_h>(&obj->_k2hshm), filename.c_str(), errskip)));
+		bool res = k2h_load_archive(reinterpret_cast<k2h_h>(&obj->_k2hshm), filename.c_str(), errskip);
+		return Napi::Boolean::New(env, res);
 	}
 }
 
@@ -2971,53 +3530,75 @@ NAN_METHOD(K2hNode::LoadArchive)
  *
  */
 
-NAN_METHOD(K2hNode::PutArchive)
+Napi::Value K2hNode::PutArchive(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("No file name is specified.");
-		return;
+		Napi::TypeError::New(env, "No file name is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	K2hNode*		obj			= Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
-	string			filename;
-	bool			errskip		= true;
-	Nan::Callback*	callback	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_PUT]);
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
 
-	if(info[0]->IsNull()){
-		Nan::ThrowSyntaxError("file name is empty.");
-		return;
+	std::string	filename;
+	bool		errskip = true;
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_PUT]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
+	}
+
+	// parse positional optional args
+	if(info[0].IsNull()){
+		Napi::TypeError::New(env, "file name is empty.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}else{
-		Nan::Utf8String	buf(info[0]);
-		filename				= std::string(*buf);
+		filename = info[0].ToString().Utf8Value();
 	}
+
 	if(1 < info.Length()){
-		if(info[1]->IsFunction()){
+		if(info[1].IsFunction()){
 			if(2 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
 			}
-			callback			= new Nan::Callback(info[1].As<v8::Function>());
-		}else if(info[1]->IsBoolean()){
-			errskip				= Nan::To<bool>(info[1]).ToChecked();
+			maybeCallback	= info[1].As<Napi::Function>();
+			hasCallback		= true;
+		}else if(info[1].IsBoolean()){
+			errskip			= info[1].ToBoolean().Value();
 		}else{
-			Nan::ThrowSyntaxError("Second parameter must be boolean.");
-			return;
+			Napi::TypeError::New(env, "Second parameter must be boolean.").ThrowAsJavaScriptException();
+			return env.Undefined();
 		}
-	}
-	if(2 < info.Length()){
-		if(3 < info.Length() || !info[2]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
-		}
-		callback				= new Nan::Callback(info[2].As<v8::Function>());
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new ArchiveWorker(callback, &(obj->_k2hshm), filename.c_str(), errskip, false));
-		info.GetReturnValue().Set(Nan::True());
+	if(2 < info.Length()){
+		if(3 < info.Length() || !info[2].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
+		}
+		maybeCallback	= info[2].As<Napi::Function>();
+		hasCallback		= true;
+	}
+
+	// Execute
+	if(hasCallback){
+		ArchiveAsyncWorker* worker = new ArchiveAsyncWorker(maybeCallback, &(obj->_k2hshm), filename.c_str(), errskip, false);
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
-		info.GetReturnValue().Set(Nan::New(k2h_put_archive(reinterpret_cast<k2h_h>(&obj->_k2hshm), filename.c_str(), errskip)));
+		bool res = k2h_put_archive(reinterpret_cast<k2h_h>(&obj->_k2hshm), filename.c_str(), errskip);
+		return Napi::Boolean::New(env, res);
 	}
 }
 
@@ -3038,29 +3619,38 @@ NAN_METHOD(K2hNode::PutArchive)
  * var k2hash = require('bindings')('k2hash') ;
  * var k2h = k2hash() ;
  * k2h.OpenMem() ;
- * var k2hq = k2h.getQueue(false,'++LIFO++') ;
- * k2hq,Push('key','val') ;
+ * var k2hq = k2h.getQueue(false, '++LIFO++') ;
+ * k2hq,Push('key', 'val') ;
  * k2hq.Count() ;
  * k2h.Close() ;
  * @endcode
  */
 
-NAN_METHOD(K2hNode::getQueue)
+Napi::Value K2hNode::getQueue(const Napi::CallbackInfo& info)
 {
-	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
+	Napi::Env env = info.Env();
 
-	K2hQueue::Init();
-	Local<Object>	retobj	= K2hQueue::GetInstance(info);
-	K2hQueue*		objq	= Nan::ObjectWrap::Unwrap<K2hQueue>(retobj->ToObject(Nan::GetCurrentContext()).ToLocalChecked());
-	bool			is_fifo	= info.Length() < 1 ? true : Nan::To<bool>(info[0]).ToChecked();
-	std::string		prefix;
-	if(2 <= info.Length()){
-		Nan::Utf8String	buf(info[1]);
-		prefix = std::string(*buf);
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
-	objq->_k2hqueue.Init(&obj->_k2hshm, is_fifo, (prefix.empty() ? NULL : reinterpret_cast<const unsigned char*>(prefix.c_str())), (prefix.empty() ? 0 : (prefix.length() + 1)));
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
 
-	info.GetReturnValue().Set(retobj);
+	// Initialize queue
+	Napi::Object	retobj	= K2hQueue::GetInstance(info);
+	K2hQueue*		objq	= Napi::ObjectWrap<K2hQueue>::Unwrap(retobj.As<Napi::Object>());
+
+	// parse positional optional args
+	bool		is_fifo = info.Length() < 1 ? true : info[0].ToBoolean().Value();
+	std::string	prefix;
+	if(2 <= info.Length()){
+		prefix = info[1].ToString().Utf8Value();
+	}
+
+	// Execute
+	objq->_k2hqueue.Init(&obj->_k2hshm, is_fifo, (prefix.empty() ? NULL : reinterpret_cast<const unsigned char*>(prefix.c_str())), (prefix.empty() ? 0 : (prefix.length() + 1)));
+	return retobj;
 }
 
 /**
@@ -3081,28 +3671,37 @@ NAN_METHOD(K2hNode::getQueue)
  * var k2h = k2hash() ;
  * k2h.OpenMem() ;
  * var k2hkq = k2h.getKeyQueue(false,'++LIFO++') ;
- * k2hkq,Push('key','val') ;
+ * k2hkq,Push('key', 'val') ;
  * k2hkq.Count() ;
  * k2h.Close() ;
  * @endcode
  */
 
-NAN_METHOD(K2hNode::getKeyQueue)
+Napi::Value K2hNode::getKeyQueue(const Napi::CallbackInfo& info)
 {
-	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
+	Napi::Env env = info.Env();
 
-	K2hKeyQueue::Init();
-	Local<Object>	retobj	= K2hKeyQueue::GetInstance(info);
-	K2hKeyQueue*	objq	= Nan::ObjectWrap::Unwrap<K2hKeyQueue>(retobj->ToObject(Nan::GetCurrentContext()).ToLocalChecked());
-	bool			is_fifo	= info.Length() < 1 ? true : Nan::To<bool>(info[0]).ToChecked();
-	std::string		prefix;
-	if(2 <= info.Length()){
-		Nan::Utf8String	buf(info[1]);
-		prefix = std::string(*buf);
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
-	objq->_k2hkeyqueue.Init(&obj->_k2hshm, is_fifo, (prefix.empty() ? NULL : reinterpret_cast<const unsigned char*>(prefix.c_str())), (prefix.empty() ? 0 : (prefix.length() + 1)));
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
 
-	info.GetReturnValue().Set(retobj);
+	// Initialize queue
+	Napi::Object	retobj	= K2hKeyQueue::GetInstance(info);
+	K2hKeyQueue*	objq	= Napi::ObjectWrap<K2hKeyQueue>::Unwrap(retobj.As<Napi::Object>());
+
+	// parse positional optional args
+	bool		is_fifo = info.Length() < 1 ? true : info[0].ToBoolean().Value();
+	std::string	prefix;
+	if(2 <= info.Length()){
+		prefix = info[1].ToString().Utf8Value();
+	}
+
+	// Execute
+	objq->_k2hkeyqueue.Init(&obj->_k2hshm, is_fifo, (prefix.empty() ? NULL : reinterpret_cast<const unsigned char*>(prefix.c_str())), (prefix.empty() ? 0 : (prefix.length() + 1)));
+	return retobj;
 }
 
 /**
@@ -3129,38 +3728,75 @@ NAN_METHOD(K2hNode::getKeyQueue)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::SetCommonAttribute)
+Napi::Value K2hNode::SetCommonAttribute(const Napi::CallbackInfo& info)
 {
-	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
+	Napi::Env env = info.Env();
 
-	const bool	istrue		= true;
-	const bool	isfalse		= false;
-	const bool* pismtime	= (info.Length() < 1 && !info[0]->IsInt32())						? NULL		:
-								K2H_VAL_ATTR_ENABLE == Nan::To<int32_t>(info[0]).ToChecked()	? &istrue	:
-								K2H_VAL_ATTR_DISABLE == Nan::To<int32_t>(info[0]).ToChecked()	? &isfalse	: NULL;
-	const bool* pishistory	= (info.Length() < 2 && !info[1]->IsInt32())						? NULL		:
-								K2H_VAL_ATTR_ENABLE == Nan::To<int32_t>(info[1]).ToChecked()	? &istrue	:
-								K2H_VAL_ATTR_DISABLE == Nan::To<int32_t>(info[1]).ToChecked()	? &isfalse	: NULL;
-	const bool* pisencrypt	= (info.Length() < 3 && !info[2]->IsInt32())						? NULL		:
-								K2H_VAL_ATTR_ENABLE == Nan::To<int32_t>(info[2]).ToChecked()	? &istrue	:
-								K2H_VAL_ATTR_DISABLE == Nan::To<int32_t>(info[2]).ToChecked()	? &isfalse	: NULL;
-	bool		is_expire	= (info.Length() < 5 && !info[4]->IsInt32())						? false		:
-								K2H_VAL_ATTR_ENABLE == Nan::To<int32_t>(info[4]).ToChecked()	? true		: false;
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	// parse positional optional args
+	const bool	istrue	= true;
+	const bool	isfalse	= false;
+
+	const bool*	pismtime = nullptr;
+	if(0 < info.Length() && info[0].IsNumber()){
+		int32_t	val = info[0].ToNumber().Int32Value();
+		if(K2H_VAL_ATTR_ENABLE == val){
+			pismtime = &istrue;
+		}else if(K2H_VAL_ATTR_DISABLE == val){
+			pismtime = &isfalse;
+		}
+	}
+
+	const bool*	pishistory = nullptr;
+	if(1 < info.Length() && info[1].IsNumber()){
+		int32_t	val = info[1].ToNumber().Int32Value();
+		if(K2H_VAL_ATTR_ENABLE == val){
+			pishistory = &istrue;
+		}else if(K2H_VAL_ATTR_DISABLE == val){
+			pishistory = &isfalse;
+		}
+	}
+
+	const bool*	pisencrypt = nullptr;
+	if(2 < info.Length() && info[2].IsNumber()){
+		int32_t	val = info[2].ToNumber().Int32Value();
+		if(K2H_VAL_ATTR_ENABLE == val){
+			pisencrypt = &istrue;
+		}else if(K2H_VAL_ATTR_DISABLE == val){
+			pisencrypt = &isfalse;
+		}
+	}
 
 	std::string	pass;
-	if(4 <= info.Length()){
-		Nan::Utf8String	buf(info[3]);
-		pass = std::string(*buf);
+	if(3 < info.Length() && !info[3].IsUndefined() && !info[3].IsNull()){
+		pass = info[3].ToString().Utf8Value();
 	}
-	time_t		expire;
-	time_t*		pexpire = NULL;
-	if(is_expire && 6 <= info.Length() && info[5]->IsNumber()){
-		expire	= reinterpret_cast<time_t>(info[5]->IntegerValue(Nan::GetCurrentContext()).ToChecked());
-		pexpire	= &expire;
+
+	bool	is_expire = false;
+	if(4 < info.Length() && info[4].IsNumber()){
+		int32_t	val	= info[4].ToNumber().Int32Value();
+		is_expire	= (K2H_VAL_ATTR_ENABLE == val);
 	}
-	info.GetReturnValue().Set(Nan::New(
-		obj->_k2hshm.SetCommonAttribute(pismtime, pisencrypt, (pass.empty() ? NULL : pass.c_str()), pishistory, pexpire)
-	));
+
+	// cppcheck-suppress unmatchedSuppression
+	// cppcheck-suppress unreadVariable
+	time_t	expire	= 0;
+	time_t*	pexpire	= nullptr;
+	if(is_expire && 5 < info.Length() && info[5].IsNumber()){
+		int64_t	val	= info[5].ToNumber().Int64Value();
+		expire		= static_cast<time_t>(val);
+		pexpire		= &expire;
+	}
+
+	// Execute
+	bool res = obj->_k2hshm.SetCommonAttribute(pismtime, pisencrypt, (pass.empty() ? NULL : pass.c_str()), pishistory, pexpire);
+	return Napi::Boolean::New(env, res);
 }
 
 /**
@@ -3171,13 +3807,20 @@ NAN_METHOD(K2hNode::SetCommonAttribute)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::CleanCommonAttribute)
+Napi::Value K2hNode::CleanCommonAttribute(const Napi::CallbackInfo& info)
 {
-	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
+	Napi::Env env = info.Env();
 
-	info.GetReturnValue().Set(Nan::New(
-		obj->_k2hshm.CleanCommonAttribute()
-	));
+	// Unwrap
+	if (!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())) {
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	// Execute
+	bool res = obj->_k2hshm.CleanCommonAttribute();
+	return Napi::Boolean::New(env, res);
 }
 
 /**
@@ -3190,19 +3833,32 @@ NAN_METHOD(K2hNode::CleanCommonAttribute)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::AddAttrPluginLib)
+Napi::Value K2hNode::AddAttrPluginLib(const Napi::CallbackInfo& info)
 {
-	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
+	Napi::Env env = info.Env();
 
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("No library file path is specified.");
-		return;
+		Napi::TypeError::New(env, "No library file path is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
-	Nan::Utf8String	libfile(info[0]);
 
-	info.GetReturnValue().Set(Nan::New(
-		obj->_k2hshm.AddAttrPluginLib(*libfile)
-	));
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	// parse positional optional args
+	if(info[0].IsNull()){
+		Napi::TypeError::New(env, "library file path is empty.").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	std::string	libfile = info[0].ToString().Utf8Value();
+
+	// Execute
+	bool res = obj->_k2hshm.AddAttrPluginLib(libfile.c_str());
+	return Napi::Boolean::New(env, res);
 }
 
 /**
@@ -3220,20 +3876,33 @@ NAN_METHOD(K2hNode::AddAttrPluginLib)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::AddAttrCryptPass)
+Napi::Value K2hNode::AddAttrCryptPass(const Napi::CallbackInfo& info)
 {
-	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
+	Napi::Env env = info.Env();
 
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("No pass phrase is specified.");
-		return;
+		Napi::TypeError::New(env, "No pass phrase is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
-	Nan::Utf8String	libfile(info[0]);
-	bool			is_default_encrypt = (2 <= info.Length() && true == Nan::To<bool>(info[1]).ToChecked());
 
-	info.GetReturnValue().Set(Nan::New(
-		obj->_k2hshm.AddAttrCryptPass(*libfile, is_default_encrypt)
-	));
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	// parse positional optional args
+	if(info[0].IsNull()){
+		Napi::TypeError::New(env, "pass phrase is empty.").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	std::string	pass				= info[0].ToString().Utf8Value();
+	bool		is_default_encrypt	= (2 <= info.Length() && info[1].ToBoolean().Value());
+
+	// Execute
+	bool res = obj->_k2hshm.AddAttrCryptPass(pass.c_str(), is_default_encrypt);
+	return Napi::Boolean::New(env, res);
 }
 
 /**
@@ -3246,32 +3915,40 @@ NAN_METHOD(K2hNode::AddAttrCryptPass)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::GetAttrVersionInfos)
+Napi::Value K2hNode::GetAttrVersionInfos(const Napi::CallbackInfo& info)
 {
-	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
+	Napi::Env env = info.Env();
 
-	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? Nan::To<int32_t>(info[0]).ToChecked() : -1;
-	FILE*		fp	= (-1 == fd ? stdout : fdopen(fd, "a"));
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	// parse positional optional args
+	int		fd = (0 < info.Length() && info[0].IsNumber()) ? info[0].ToNumber().Int32Value() : -1;
+	FILE*	fp = (-1 == fd ? stdout : fdopen(fd, "a"));
 	if(!fp){
-		Nan::ThrowError("could not open output stream.");
-		return;
+		Napi::Error::New(env, "could not open output stream.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
+	// Execute
 	strarr_t	verinfos;
 	if(!obj->_k2hshm.GetAttrVersionInfos(verinfos)){
-		info.GetReturnValue().Set(Nan::False());
-		return;
+		return Napi::Boolean::New(env, false);
 	}
 
 	fprintf(fp, "K2HASH attribute libraries:");
 	for(strarr_t::const_iterator iter = verinfos.begin(); iter != verinfos.end(); ++iter){
-		fprintf(fp, "  %s\n", iter->c_str());
+		fprintf(fp, "  %s\n",iter->c_str());
 	}
 
 	// Need to flush stream here!
-	fflush(fp) ;
+	fflush(fp);
 
-	info.GetReturnValue().Set(Nan::True());
+	return Napi::Boolean::New(env, true);
 }
 
 /**
@@ -3284,25 +3961,34 @@ NAN_METHOD(K2hNode::GetAttrVersionInfos)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hNode::GetAttrInfos)
+Napi::Value K2hNode::GetAttrInfos(const Napi::CallbackInfo& info)
 {
-	K2hNode*	obj = Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
+	Napi::Env env = info.Env();
 
-	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? Nan::To<int32_t>(info[0]).ToChecked() : -1;
-	FILE*		fp	= (-1 == fd ? stdout : fdopen(fd, "a"));
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
+
+	// parse positional optional args
+	int		fd = (0 < info.Length() && info[0].IsNumber()) ? info[0].ToNumber().Int32Value() : -1;
+	FILE*	fp = (-1 == fd ? stdout : fdopen(fd, "a"));
 	if(!fp){
-		Nan::ThrowError("could not open output stream.");
-		return;
+		Napi::Error::New(env, "could not open output stream.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
+	// Execute
 	std::stringstream	ss;
 	obj->_k2hshm.GetAttrInfos(ss);
 	fprintf(fp, "%s\n", ss.str().c_str());
 
 	// Need to flush stream here!
-	fflush(fp) ;
+	fflush(fp);
 
-	info.GetReturnValue().Set(Nan::True());
+	return Napi::Boolean::New(env, true);
 }
 
 /**
@@ -3324,53 +4010,70 @@ NAN_METHOD(K2hNode::GetAttrInfos)
  *
  */
 
-NAN_METHOD(K2hNode::GetAttrs)
+Napi::Value K2hNode::GetAttrs(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("No key name is specified.");
-		return;
+		Napi::TypeError::New(env, "No key name is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	K2hNode*		obj		= Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
-	string			strkey;
-	Nan::Callback*	callback= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_GETATTRS]);
+	// Unwrap
+	if(!info.This().IsObject()||!info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
 
-	if(info[0]->IsNull()){
-		Nan::ThrowSyntaxError("key is empty.");
-		return;
+	std::string	strkey;
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_GETATTRS]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
+	}
+
+	// parse positional optional args
+	if(info[0].IsNull()){
+		Napi::TypeError::New(env, "key is empty.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}else{
-		Nan::Utf8String	buf(info[0]);
-		strkey				= std::string(*buf);
+		strkey = info[0].ToString().Utf8Value();
 	}
+
 	if(1 < info.Length()){
-		if(2 < info.Length() || !info[1]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
+		if(2 < info.Length() || !info[1].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
 		}
-		callback			= new Nan::Callback(info[1].As<v8::Function>());
+		maybeCallback	= info[1].As<Napi::Function>();
+		hasCallback		= true;
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new GetAttrsWorker(callback, &(obj->_k2hshm), strkey.c_str()));
-		info.GetReturnValue().Set(Nan::True());
+	// Execute
+	if(hasCallback){
+		GetAttrsAsyncWorker* worker = new GetAttrsAsyncWorker(maybeCallback, &(obj->_k2hshm), strkey.c_str());
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
-		K2HAttrs*		attrs	= obj->_k2hshm.GetAttrs(strkey.c_str());
+		K2HAttrs*	attrs = obj->_k2hshm.GetAttrs(strkey.c_str());
 		if(!attrs){
-			info.GetReturnValue().Set(Nan::Null());
-			return;
+			return env.Null();
 		}
-		Local<Array>	retarr	= Nan::New<Array>();
-		int				pos		= 0;
-		for(K2HAttrs::iterator iter = attrs->begin(); iter != attrs->end(); ++iter, ++pos){
+		Napi::Array	retarr	= Napi::Array::New(env);
+		uint32_t	pos		= 0;
+		for(K2HAttrs::iterator iter = attrs->begin(); iter != attrs->end(); ++iter){
 			if(0UL == iter->keylength || !iter->pkey){
 				continue;
 			}
-			Nan::Set(retarr, pos, Nan::New<String>(reinterpret_cast<const char*>(iter->pkey)).ToLocalChecked());
+			retarr.Set(pos++, Napi::String::New(env, reinterpret_cast<const char*>(iter->pkey), static_cast<size_t>(strlen(reinterpret_cast<const char*>(iter->pkey)))));
 		}
 		delete attrs;
-
-		info.GetReturnValue().Set(retarr);
+		return retarr;
 	}
 }
 
@@ -3395,51 +4098,69 @@ NAN_METHOD(K2hNode::GetAttrs)
  *
  */
 
-NAN_METHOD(K2hNode::GetAttrValue)
+Napi::Value K2hNode::GetAttrValue(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
 	if(info.Length() < 2){
-		Nan::ThrowSyntaxError("No key name or no attribute name are specified.");
-		return;
+		Napi::TypeError::New(env, "No key name or no attribute name are specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	K2hNode*		obj		= Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
-	string			strkey;
-	string			strattr;
-	Nan::Callback*	callback= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_GETATTRVAL]);
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
 
-	if(info[0]->IsNull()){
-		Nan::ThrowSyntaxError("key is empty.");
-		return;
-	}else{
-		Nan::Utf8String	buf(info[0]);
-		strkey				= std::string(*buf);
+	std::string	strkey;
+	std::string	strattr;
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_GETATTRVAL]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
 	}
-	if(info[1]->IsNull()){
-		Nan::ThrowSyntaxError("attr key is empty.");
-		return;
+
+	// parse positional optional args
+	if(info[0].IsNull()){
+		Napi::TypeError::New(env, "key is empty.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}else{
-		Nan::Utf8String	buf(info[1]);
-		strattr				= std::string(*buf);
+		strkey = info[0].ToString().Utf8Value();
 	}
+
+	if(info[1].IsNull()){
+		Napi::TypeError::New(env, "attr key is empty.").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}else{
+		strattr = info[1].ToString().Utf8Value();
+	}
+
 	if(2 < info.Length()){
-		if(3 < info.Length() || !info[2]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
+		if(3 < info.Length() || !info[2].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
 		}
-		callback			= new Nan::Callback(info[2].As<v8::Function>());
+		maybeCallback	= info[2].As<Napi::Function>();
+		hasCallback		= true;
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new GetAttrValueWorker(callback, &(obj->_k2hshm), strkey.c_str(), strattr.c_str()));
-		info.GetReturnValue().Set(Nan::True());
+	// Execute
+	if(hasCallback){
+		GetAttrValueAsyncWorker* worker = new GetAttrValueAsyncWorker(maybeCallback, &(obj->_k2hshm), strkey.c_str(), strattr.c_str());
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
 		K2HAttrs*	attrs = obj->_k2hshm.GetAttrs(strkey.c_str());
 		if(!attrs){
-			info.GetReturnValue().Set(Nan::Null());
-			return;
+			return env.Null();
 		}
-		bool	is_found = false;
+
 		for(K2HAttrs::iterator iter = attrs->begin(); iter != attrs->end(); ++iter){
 			if(0UL == iter->keylength || !iter->pkey){
 				continue;
@@ -3450,19 +4171,18 @@ NAN_METHOD(K2hNode::GetAttrValue)
 			if(0 == memcmp(iter->pkey, strattr.c_str(), iter->keylength)){
 				// found
 				if(0 < iter->vallength && iter->pval){
-					info.GetReturnValue().Set(Nan::New<String>(reinterpret_cast<const char*>(iter->pval)).ToLocalChecked());
+					Napi::Value val = Napi::String::New(env, reinterpret_cast<const char*>(iter->pval), static_cast<size_t>(strlen(reinterpret_cast<const char*>(iter->pval))));
+					delete attrs;
+					return val;
 				}else{
-					info.GetReturnValue().Set(Nan::Null());
+					delete attrs;
+					return env.Null();
 				}
-				is_found = true;
-				break;
+				break;	// not effort
 			}
 		}
 		delete attrs;
-		if(!is_found){
-			// not found
-			info.GetReturnValue().Set(Nan::Null());
-		}
+		return env.Null();
 	}
 }
 
@@ -3488,61 +4208,83 @@ NAN_METHOD(K2hNode::GetAttrValue)
  *
  */
 
-NAN_METHOD(K2hNode::AddAttr)
+Napi::Value K2hNode::AddAttr(const Napi::CallbackInfo& info)
 {
-	if(info.Length() < 3){
-		Nan::ThrowSyntaxError("No key name or no attribute name/value are specified.");
-		return;
+	Napi::Env env = info.Env();
+
+	if(info.Length() < 2){
+		Napi::TypeError::New(env, "No key name or no attribute name/value are specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	K2hNode*		obj			= Nan::ObjectWrap::Unwrap<K2hNode>(info.This());
-	string			strkey;
-	string			strattr;
-	bool			is_val_set	= false;
-	string			strval;
-	Nan::Callback*	callback	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_ADDATTR]);
+	// Unwrap
+	if(!info.This().IsObject()||!info.This().As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hNode instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* obj = Napi::ObjectWrap<K2hNode>::Unwrap(info.This().As<Napi::Object>());
 
-	if(info[0]->IsNull()){
-		Nan::ThrowSyntaxError("key is empty.");
-		return;
-	}else{
-		Nan::Utf8String	buf(info[0]);
-		strkey					= std::string(*buf);
+	std::string	strkey;
+	std::string	strattr;
+	bool		is_val_set = false;
+	std::string	strval;
+
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2h_emitters[K2H_EMITTER_POS_ADDATTR]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
 	}
-	if(info[1]->IsNull()){
-		Nan::ThrowSyntaxError("attribute name is empty.");
-		return;
+
+	// parse positional optional args
+	if(info[0].IsNull()){
+		Napi::TypeError::New(env, "key is empty.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}else{
-		Nan::Utf8String	buf(info[1]);
-		strattr					= std::string(*buf);
+		strkey = info[0].ToString().Utf8Value();
 	}
+
+	if(info[1].IsNull()){
+		Napi::TypeError::New(env, "attribute name is empty.").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}else{
+		strattr = info[1].ToString().Utf8Value();
+	}
+
 	if(2 < info.Length()){
-		if(info[2]->IsFunction()){
+		if(info[2].IsFunction()){
 			if(3 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
 			}
-			callback			= new Nan::Callback(info[2].As<v8::Function>());
-		}else if(!info[2]->IsNull()){
-			Nan::Utf8String	buf(info[2]);
-			strval				= std::string(*buf);
-			is_val_set			= true;
+			maybeCallback	= info[2].As<Napi::Function>();
+			hasCallback		= true;
+		}else if(!info[2].IsNull()){
+			strval		= info[2].ToString().Utf8Value();
+			is_val_set	= true;
 		}
-	}
-	if(3 < info.Length()){
-		if(4 < info.Length() || !info[3]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
-		}
-		callback				= new Nan::Callback(info[3].As<v8::Function>());
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new AddAttrWorker(callback, &(obj->_k2hshm), strkey.c_str(), strattr.c_str(), (is_val_set ? strval.c_str() : NULL)));
-		info.GetReturnValue().Set(Nan::True());
+	if(3 < info.Length()){
+		if(4 < info.Length() || !info[3].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
+		}
+		maybeCallback	= info[3].As<Napi::Function>();
+		hasCallback		= true;
+	}
+
+	// Execute
+	if(hasCallback){
+		AddAttrAsyncWorker* worker = new AddAttrAsyncWorker(maybeCallback, &(obj->_k2hshm), strkey.c_str(), strattr.c_str(), (is_val_set ? strval.c_str() : NULL));
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
-		info.GetReturnValue().Set(Nan::New(obj->_k2hshm.AddAttr(strkey.c_str(), strattr.c_str(), (is_val_set ? strval.c_str() : NULL))));
+		bool res = obj->_k2hshm.AddAttr(strkey.c_str(), strattr.c_str(), (is_val_set ? strval.c_str() : NULL));
+		return Napi::Boolean::New(env, res);
 	}
 }
 
