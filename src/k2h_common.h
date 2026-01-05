@@ -31,7 +31,7 @@
 #include <k2hash/k2hqueue.h>
 #include <k2hash/k2hutil.h>
 
-#include <nan.h>
+#include <napi.h>
 #include <string>
 #include <iostream>
 #include <map>

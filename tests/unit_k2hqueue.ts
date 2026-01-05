@@ -20,20 +20,113 @@
 
 'use strict';
 
-var	common		= require('./unit_common');				// Common objects for Chai
-var	chai		= common.chai;							// eslint-disable-line no-unused-vars
-var	k2hash		= common.k2hash;						// eslint-disable-line no-unused-vars
-var	assert		= common.assert;						// eslint-disable-line no-unused-vars
-var	expect		= common.expect;						// eslint-disable-line no-unused-vars
+import 'mocha';
+import * as fs				from 'fs';
+import * as k2hashModule	from '..';
+
+const k2hash: any			= (k2hashModule && (k2hashModule as any).default) ? (k2hashModule as any).default : k2hashModule;
+
+// [NOTE] About chai
+// In NodeJS 20, this unit test code will be converted to CommonJS by
+// tsc and then executed.
+// However, in Alpine's NodeJS 20, chai only supports ESM (import),
+// resulting in an error.(ESM-only)
+// For this reason, we will make sure that only chai calls the native
+// import.
+//
+// If this issue did not exist (NodeJS 20 is no longer supported due
+// to its EOL), the code could be simplified as follows:
+//		----------------------------------
+//		import * as chai from 'chai';
+//		const { assert, expect } = chai;
+//		before(function(){
+//		});
+//		----------------------------------
+//
+let	assert: any;	// assert.chai
+let	expect: any;	// expect.chai
+
+//--------------------------------------------------------------
+// Common function
+//--------------------------------------------------------------
+//
+// Helper function for calling native dynamic import function
+//
+// [NOTE]
+// This is chai's ESM-only problem.
+//
+function nativeDynamicImport(specifier: string): Promise<any>
+{
+	// [NOTE]
+	// When using "new Function()", tsc won't convert this contents,
+	// which means that Node's import() will be called at runtime
+	// even after converting to CommonJS.
+	//
+	return (new Function('s', 'return import(s)'))(specifier);
+}
+
+//--------------------------------------------------------------
+// Before in global section
+//--------------------------------------------------------------
+// [NOTE]
+// For chai's ESM-only problem
+//
+// When importing(requiring) chai in NodeJS 20, native import will
+// be attempted even in CommonJS.
+// This allows you to import chai, which is ESM-only. If the import
+// fails, the require will be retried.
+//
+before(async function()
+{
+	// Try import()
+	try{
+		const	chaiModule	= await nativeDynamicImport('chai');
+		const	chai		= (chaiModule && (chaiModule as any).default) ? (chaiModule as any).default : chaiModule;
+		assert	= chai.assert;
+		expect	= chai.expect;
+	}catch(error: any){
+		// Retry with require()
+		try{
+			// eslint-disable-next-line @typescript-eslint/no-var-requires
+			const	chai = require('chai');
+			assert	= chai.assert;
+			expect	= chai.expect;
+		}catch(error2: any){
+			throw new Error('Failed to load chai via import() and require(): ' + JSON.stringify(error2));
+		}
+	}
+});
+
+//--------------------------------------------------------------
+// After in global section
+//--------------------------------------------------------------
+after(function(){
+	// Nothing to do
+});
+
+//--------------------------------------------------------------
+// BeforeEach in global section
+//--------------------------------------------------------------
+beforeEach(function(){
+	// Nothing to do
+});
+
+//--------------------------------------------------------------
+// AfterEach in global section
+//--------------------------------------------------------------
+afterEach(function(){
+	// Nothing to do
+});
 
 //--------------------------------------------------------------
 // Main describe section
 //--------------------------------------------------------------
-describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
+describe('K2HQUEUE', function()
+{
 	//
 	// Before in describe section
 	//
-	before(function(done){								// eslint-disable-line no-undef
+	before(function(done: Mocha.Done){
 		// Nothing to do
 		done();
 	});
@@ -41,7 +134,7 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// After in describe section
 	//
-	after(function(){									// eslint-disable-line no-undef
+	after(function(){
 		// Nothing to do
 	});
 
@@ -51,15 +144,16 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue k2hash::create(), close()
 	//
-	it('k2hqueue - k2hash::create() / k2hash::close()', function(done){		// eslint-disable-line no-undef
-		var	k2hfile1	= '/tmp/test02_tmp.k2h';
-		var	k2hfile2	= '/tmp/test03_tmp.k2h';
-		var	k2h			= k2hash();
+	it('k2hqueue - k2hash::create() / k2hash::close()', function(done: Mocha.Done){
+		const k2hfile1: string	= '/tmp/test02_tmp.k2h';
+		const k2hfile2: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		expect(k2h.create(k2hfile1, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 		expect(k2h.close()).to.be.a('boolean').to.be.true;
 		expect(k2h.create(k2hfile2, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 		expect(k2h.close()).to.be.a('boolean').to.be.true;
+
 		done();
 	});
 
@@ -69,13 +163,13 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue k2hash::getQueue()
 	//
-	it('k2hqueue - k2hash::getQueue()', function(done){						// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hash::getQueue()', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 		expect(k2h.close()).to.be.a('boolean').to.be.true;
 
@@ -88,15 +182,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Push(FIFO nopass) - No Callback
 	//
-	it('k2hqueue - k2hqueue::Push(FIFO nopass) - No Callback', function(done){		// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Push(FIFO nopass) - No Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -104,9 +198,13 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
-		var	values	= ['data1', 'data2', 'data3'];
-		var	qcount	= 0;
-		for(var val in values){
+		const values: string[]	= [
+			'data1',
+			'data2',
+			'data3'
+		];
+		let	qcount: number	= 0;
+		for(const val in values){
 			expect(k2hq.push(values[val])).to.be.a('boolean').to.be.true;
 			++qcount;
 			expect(k2hq.count()).to.equal(qcount);
@@ -129,15 +227,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Push(FIFO pass) - No Callback
 	//
-	it('k2hqueue - k2hqueue::Push(FIFO pass) - No Callback', function(done){		// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Push(FIFO pass) - No Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -145,9 +243,13 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
-		var	values	= ['data1', 'data2', 'data3'];
-		var	qcount	= 0;
-		for(var val in values){
+		const	values: string[] = [
+			'data1',
+			'data2',
+			'data3'
+		];
+		let	qcount: number	= 0;
+		for(const val in values){
 			expect(k2hq.push(values[val], 'mypass')).to.be.a('boolean').to.be.true;
 			++qcount;
 			expect(k2hq.count()).to.equal(qcount);
@@ -170,15 +272,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Push(FIFO nopass) - on Callback
 	//
-	it('k2hqueue - k2hqueue::Push(FIFO nopass) - on Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Push(FIFO nopass) - on Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -186,22 +288,27 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set on(push) callback
-		expect(k2hq.on('push', function(error)
+		expect(k2hq.on('push', function(error?: any)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check queue
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
-			expect(k2hq.count()).to.equal(1);
-			expect(k2hq.pop()).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check queue
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				expect(k2hq.count()).to.equal(1);
+				expect(k2hq.pop()).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.off('push');
+				// unset
+				k2hq.off('push');
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
@@ -211,15 +318,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Push(FIFO pass) - on Callback
 	//
-	it('k2hqueue - k2hqueue::Push(FIFO pass) - on Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Push(FIFO pass) - on Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -227,22 +334,27 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set on(push) callback
-		expect(k2hq.on('push', function(error)
+		expect(k2hq.on('push', function(error?: any)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check queue
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
-			expect(k2hq.count()).to.equal(1);
-			expect(k2hq.pop('mypass')).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check queue
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				expect(k2hq.count()).to.equal(1);
+				expect(k2hq.pop('mypass')).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.off('push');
+				// unset
+				k2hq.off('push');
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
@@ -252,15 +364,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Push(FIFO nopass) - onPush Callback
 	//
-	it('k2hqueue - k2hqueue::Push(FIFO nopass) - onPush Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Push(FIFO nopass) - onPush Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -268,22 +380,27 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty(), 'k2hqueue::Push(FIFO nopass) - onPush Callback : isEmpty() returns false');
 
 		// set onPush callback
-		expect(k2hq.onPush(function(error)
+		expect(k2hq.onPush(function(error?: any)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check queue
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
-			expect(k2hq.count()).to.equal(1);
-			expect(k2hq.pop()).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check queue
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				expect(k2hq.count()).to.equal(1);
+				expect(k2hq.pop()).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offPush();
+				// unset
+				k2hq.offPush();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
@@ -293,15 +410,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Push(FIFO pass) - onPush Callback
 	//
-	it('k2hqueue - k2hqueue::Push(FIFO pass) - onPush Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Push(FIFO pass) - onPush Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -309,22 +426,27 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set onPush callback
-		expect(k2hq.onPush(function(error)
+		expect(k2hq.onPush(function(error?: any)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check queue
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
-			expect(k2hq.count()).to.equal(1);
-			expect(k2hq.pop('mypass')).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check queue
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				expect(k2hq.count()).to.equal(1);
+				expect(k2hq.pop('mypass')).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offPush();
+				// unset
+				k2hq.offPush();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
@@ -334,15 +456,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Push(FIFO nopass) - inline Callback
 	//
-	it('k2hqueue - k2hqueue::Push(FIFO nopass) - inline Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Push(FIFO nopass) - inline Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -350,34 +472,39 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
-		expect(k2hq.push('data1', function(error)
+		expect(k2hq.push('data1', function(error?: any)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check queue
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
-			expect(k2hq.count()).to.equal(1);
-			expect(k2hq.pop()).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check queue
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				expect(k2hq.count()).to.equal(1);
+				expect(k2hq.pop()).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 	});
 
 	//
 	// k2hqueue::Push(FIFO pass) - inline Callback
 	//
-	it('k2hqueue - k2hqueue::Push(FIFO pass) - inline Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Push(FIFO pass) - inline Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -385,22 +512,27 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
-		expect(k2hq.push('data1', 'mypass', function(error)
+		expect(k2hq.push('data1', 'mypass', function(error?: any)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check queue
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
-			expect(k2hq.count()).to.equal(1);
-			expect(k2hq.pop('mypass')).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check queue
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				expect(k2hq.count()).to.equal(1);
+				expect(k2hq.pop('mypass')).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offPush();
+				// unset
+				k2hq.offPush();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 	});
 
@@ -415,15 +547,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Pop(FIFO nopass) - on Callback
 	//
-	it('k2hqueue - k2hqueue::Pop(FIFO nopass) - on Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Pop(FIFO nopass) - on Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -431,20 +563,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set on(pop) callback
-		expect(k2hq.on('pop', function(error, data)
+		expect(k2hq.on('pop', function(error?: any, data?: [string, string] | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.off('pop');
+				// unset
+				k2hq.off('pop');
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
@@ -457,15 +594,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Pop(FIFO pass) - on Callback
 	//
-	it('k2hqueue - k2hqueue::Pop(FIFO pass) - on Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Pop(FIFO pass) - on Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -473,20 +610,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set on(pop) callback
-		expect(k2hq.on('pop', function(error, data)
+		expect(k2hq.on('pop', function(error?: any, data?: [string, string] | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.off('pop');
+				// unset
+				k2hq.off('pop');
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
@@ -499,15 +641,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Pop(FIFO nopass) - onPop Callback
 	//
-	it('k2hqueue - k2hqueue::Pop(FIFO nopass) - onPop Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Pop(FIFO nopass) - onPop Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -515,20 +657,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set onPop callback
-		expect(k2hq.onPop(function(error, data)
+		expect(k2hq.onPop(function(error?: any, data?: [string, string] | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offPop();
+				// unset
+				k2hq.offPop();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
@@ -541,15 +688,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Pop(FIFO pass) - onPop Callback
 	//
-	it('k2hqueue - k2hqueue::Pop(FIFO pass) - onPop Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Pop(FIFO pass) - onPop Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -557,20 +704,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set onPop callback
-		expect(k2hq.onPop(function(error, data)
+		expect(k2hq.onPop(function(error?: any, data?: [string, string] | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offPop();
+				// unset
+				k2hq.offPop();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
@@ -583,15 +735,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Pop(FIFO nopass) - inline Callback
 	//
-	it('k2hqueue - k2hqueue::Pop(FIFO nopass) - inline Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Pop(FIFO nopass) - inline Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -602,32 +754,37 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.push('data1')).to.be.a('boolean').to.be.true;
 
 		// pop queue(no pass)
-		expect(k2hq.pop(function(error, data)
+		expect(k2hq.pop(function(error?: any, data?: [string, string] | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 	});
 
 	//
 	// k2hqueue::Pop(FIFO pass) - inline Callback
 	//
-	it('k2hqueue - k2hqueue::Pop(FIFO pass) - inline Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Pop(FIFO pass) - inline Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -638,17 +795,22 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.push('data1', 'mypass')).to.be.a('boolean').to.be.true;
 
 		// pop queue(pass)
-		expect(k2hq.pop('mypass', function(error, data)
+		expect(k2hq.pop('mypass', function(error?: any, data?: [string, string] | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 	});
 
@@ -658,15 +820,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Read(FIFO nopass) - No Callback
 	//
-	it('k2hqueue - k2hqueue::Read(FIFO nopass) - No Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Read(FIFO nopass) - No Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -674,9 +836,12 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
-		var	values	= ['data1', 'data2'];
-		var	qcount	= 0;
-		for(var val in values){
+		const values: string[]	= [
+			'data1',
+			'data2'
+		];
+		let	qcount: number	= 0;
+		for(const val in values){
 			expect(k2hq.push(values[val])).to.be.a('boolean').to.be.true;
 			++qcount;
 			expect(k2hq.count()).to.equal(qcount);
@@ -697,15 +862,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Read(FIFO pass) - No Callback
 	//
-	it('k2hqueue - k2hqueue::Read(FIFO pass) - No Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Read(FIFO pass) - No Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -713,9 +878,12 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
-		var	values	= ['data1', 'data2'];
-		var	qcount	= 0;
-		for(var val in values){
+		const values: string[]	= [
+			'data1',
+			'data2'
+		];
+		let	qcount: number	= 0;
+		for(const val in values){
 			expect(k2hq.push(values[val], 'mypass')).to.be.a('boolean').to.be.true;
 			++qcount;
 			expect(k2hq.count()).to.equal(qcount);
@@ -736,15 +904,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Read(FIFO nopass) - on Callback
 	//
-	it('k2hqueue - k2hqueue::Read(FIFO nopass) - on Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Read(FIFO nopass) - on Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -752,20 +920,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set on(read) callback
-		expect(k2hq.on('read', function(error, data)
+		expect(k2hq.on('read', function(error?: any, data?: [string, string] | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.off('read');
+				// unset
+				k2hq.off('read');
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
@@ -778,15 +951,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Read(FIFO pass) - on Callback
 	//
-	it('k2hqueue - k2hqueue::Read(FIFO pass) - on Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Read(FIFO pass) - on Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -794,20 +967,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set on(read) callback
-		expect(k2hq.on('read', function(error, data)
+		expect(k2hq.on('read', function(error?: any, data?: [string, string] | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.off('read');
+				// unset
+				k2hq.off('read');
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
@@ -820,15 +998,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Read(FIFO nopass) - onRead Callback
 	//
-	it('k2hqueue - k2hqueue::Read(FIFO nopass) - onRead Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Read(FIFO nopass) - onRead Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -836,20 +1014,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set onRead callback
-		expect(k2hq.onRead(function(error, data)
+		expect(k2hq.onRead(function(error?: any, data?: [string, string] | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offRead();
+				// unset
+				k2hq.offRead();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
@@ -862,15 +1045,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Read(FIFO pass) - onRead Callback
 	//
-	it('k2hqueue - k2hqueue::Read(FIFO pass) - onRead Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Read(FIFO pass) - onRead Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -878,20 +1061,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set onRead callback
-		expect(k2hq.onRead(function(error, data)
+		expect(k2hq.onRead(function(error?: any, data?: [string, string] | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offRead();
+				// unset
+				k2hq.offRead();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
@@ -904,15 +1092,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Read(FIFO nopass) - inline Callback
 	//
-	it('k2hqueue - k2hqueue::Read(FIFO nopass) - inline Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Read(FIFO nopass) - inline Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -923,32 +1111,37 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.push('data1')).to.be.a('boolean').to.be.true;
 
 		// read queue(no pass)
-		expect(k2hq.read(function(error, data)
+		expect(k2hq.read(function(error?: any, data?: [string, string] | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 	});
 
 	//
 	// k2hqueue::Read(FIFO pass) - inline Callback
 	//
-	it('k2hqueue - k2hqueue::Read(FIFO pass) - inline Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Read(FIFO pass) - inline Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -959,17 +1152,22 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.push('data1', 'mypass')).to.be.a('boolean').to.be.true;
 
 		// read queue(pass)
-		expect(k2hq.read('mypass', function(error, data)
+		expect(k2hq.read('mypass', function(error?: any, data?: [string, string] | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 	});
 
@@ -979,15 +1177,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Remove(FIFO nopass) - No Callback
 	//
-	it('k2hqueue - k2hqueue::Remove(FIFO nopass) - No Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Remove(FIFO nopass) - No Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -995,9 +1193,13 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
-		var	values	= ['data1', 'data2', 'data3'];
-		var	qcount	= 0;
-		for(var val in values){
+		const values: string[]	= [
+			'data1',
+			'data2',
+			'data3'
+		];
+		let	qcount: number	= 0;
+		for(const val in values){
 			expect(k2hq.push(values[val])).to.be.a('boolean').to.be.true;
 			++qcount;
 			expect(k2hq.count()).to.equal(qcount);
@@ -1018,15 +1220,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Remove(FIFO pass) - No Callback
 	//
-	it('k2hqueue - k2hqueue::Remove(FIFO pass) - No Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Remove(FIFO pass) - No Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1034,9 +1236,13 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
-		var	values	= ['data1', 'data2', 'data3'];
-		var	qcount	= 0;
-		for(var val in values){
+		const values: string[]	= [
+			'data1',
+			'data2',
+			'data3'
+		];
+		let	qcount: number	= 0;
+		for(const val in values){
 			expect(k2hq.push(values[val], 'mypass')).to.be.a('boolean').to.be.true;
 			++qcount;
 			expect(k2hq.count()).to.equal(qcount);
@@ -1057,15 +1263,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Remove(FIFO nopass) - on Callback
 	//
-	it('k2hqueue - k2hqueue::Remove(FIFO nopass) - on Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Remove(FIFO nopass) - on Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1073,20 +1279,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set on(remove) callback
-		expect(k2hq.on('remove', function(error, remove_count)
+		expect(k2hq.on('remove', function(error?: any, remove_count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(remove_count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(remove_count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.off('remove');
+				// unset
+				k2hq.off('remove');
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
@@ -1099,15 +1310,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Remove(FIFO pass) - on Callback
 	//
-	it('k2hqueue - k2hqueue::Remove(FIFO pass) - on Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Remove(FIFO pass) - on Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1115,20 +1326,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set on(remove) callback
-		expect(k2hq.on('remove', function(error, remove_count)
+		expect(k2hq.on('remove', function(error?: any, remove_count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(remove_count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(remove_count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.off('remove');
+				// unset
+				k2hq.off('remove');
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
@@ -1141,15 +1357,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Remove(FIFO nopass) - onRemove Callback
 	//
-	it('k2hqueue - k2hqueue::Remove(FIFO nopass) - onRemove Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Remove(FIFO nopass) - onRemove Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1157,20 +1373,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set onRemove callback
-		expect(k2hq.onRemove(function(error, remove_count)
+		expect(k2hq.onRemove(function(error?: any, remove_count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(remove_count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(remove_count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offRemove();
+				// unset
+				k2hq.offRemove();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
@@ -1183,15 +1404,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Remove(FIFO pass) - onRemove Callback
 	//
-	it('k2hqueue - k2hqueue::Remove(FIFO pass) - onRemove Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Remove(FIFO pass) - onRemove Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1199,20 +1420,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set onRemove callback
-		expect(k2hq.onRemove(function(error, remove_count)
+		expect(k2hq.onRemove(function(error?: any, remove_count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(remove_count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(remove_count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offRemove();
+				// unset
+				k2hq.offRemove();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
@@ -1225,15 +1451,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Remove(FIFO nopass) - inline Callback
 	//
-	it('k2hqueue - k2hqueue::Remove(FIFO nopass) - inline Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Remove(FIFO nopass) - inline Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1244,32 +1470,37 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.push('data1')).to.be.a('boolean').to.be.true;
 
 		// remove queue(no pass)
-		expect(k2hq.remove(1, function(error, remove_count)
+		expect(k2hq.remove(1, function(error?: any, remove_count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(remove_count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(remove_count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 	});
 
 	//
 	// k2hqueue::Remove(FIFO pass) - inline Callback
 	//
-	it('k2hqueue - k2hqueue::Remove(FIFO pass) - inline Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Remove(FIFO pass) - inline Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1280,17 +1511,22 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.push('data1', 'mypass')).to.be.a('boolean').to.be.true;
 
 		// remove queue(pass)
-		expect(k2hq.remove(1, 'mypass', function(error, remove_count)
+		expect(k2hq.remove(1, 'mypass', function(error?: any, remove_count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(remove_count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(remove_count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 	});
 
@@ -1300,15 +1536,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Count(FIFO nopass) - No Callback
 	//
-	it('k2hqueue - k2hqueue::Count(FIFO nopass) - No Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Count(FIFO nopass) - No Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1316,9 +1552,13 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
-		var	values	= ['data1', 'data2', 'data3'];
-		var	qcount	= 0;
-		for(var val in values){
+		const values: string[]	= [
+			'data1',
+			'data2',
+			'data3'
+		];
+		let	qcount: number	= 0;
+		for(const val in values){
 			expect(k2hq.push(values[val])).to.be.a('boolean').to.be.true;
 			++qcount;
 			expect(k2hq.count()).to.equal(qcount);
@@ -1335,15 +1575,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Count(FIFO pass) - No Callback
 	//
-	it('k2hqueue - k2hqueue::Count(FIFO pass) - No Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Count(FIFO pass) - No Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1351,9 +1591,13 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
-		var	values	= ['data1', 'data2', 'data3'];
-		var	qcount	= 0;
-		for(var val in values){
+		const values: string[]	= [
+			'data1',
+			'data2',
+			'data3'
+		];
+		let	qcount: number	= 0;
+		for(const val in values){
 			expect(k2hq.push(values[val], 'mypass')).to.be.a('boolean').to.be.true;
 			++qcount;
 			expect(k2hq.count()).to.equal(qcount);
@@ -1370,15 +1614,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Count(FIFO nopass) - on Callback
 	//
-	it('k2hqueue - k2hqueue::Count(FIFO nopass) - on Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Count(FIFO nopass) - on Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1386,20 +1630,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set on(count) callback
-		expect(k2hq.on('count', function(error, count)
+		expect(k2hq.on('count', function(error?: any, count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.off('count');
+				// unset
+				k2hq.off('count');
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
@@ -1412,15 +1661,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Count(FIFO pass) - on Callback
 	//
-	it('k2hqueue - k2hqueue::Count(FIFO pass) - on Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Count(FIFO pass) - on Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1428,20 +1677,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set on(count) callback
-		expect(k2hq.on('count', function(error, count)
+		expect(k2hq.on('count', function(error?: any, count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.off('count');
+				// unset
+				k2hq.off('count');
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
@@ -1454,15 +1708,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Count(FIFO nopass) - onCount Callback
 	//
-	it('k2hqueue - k2hqueue::Count(FIFO nopass) - onCount Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Count(FIFO nopass) - onCount Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1470,20 +1724,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set onCount Callback
-		expect(k2hq.onCount(function(error, count)
+		expect(k2hq.onCount(function(error?: any, count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offCount();
+				// unset
+				k2hq.offCount();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
@@ -1496,15 +1755,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Count(FIFO pass) - onCount Callback
 	//
-	it('k2hqueue - k2hqueue::Count(FIFO pass) - onCount Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Count(FIFO pass) - onCount Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1512,20 +1771,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set onCount Callback
-		expect(k2hq.onCount(function(error, count)
+		expect(k2hq.onCount(function(error?: any, count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offCount();
+				// unset
+				k2hq.offCount();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
@@ -1538,15 +1802,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Count(FIFO nopass) - inline Callback
 	//
-	it('k2hqueue - k2hqueue::Count(FIFO nopass) - inline Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Count(FIFO nopass) - inline Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1557,32 +1821,37 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.push('data1')).to.be.a('boolean').to.be.true;
 
 		// count queue(no pass)
-		expect(k2hq.count(function(error, count)
+		expect(k2hq.count(function(error?: any, count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 	});
 
 	//
 	// k2hqueue::Count(FIFO pass) - inline Callback
 	//
-	it('k2hqueue - k2hqueue::Count(FIFO pass) - inline Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Count(FIFO pass) - inline Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1593,17 +1862,22 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.push('data1', 'mypass')).to.be.a('boolean').to.be.true;
 
 		// count queue(pass)
-		expect(k2hq.count(function(error, count)
+		expect(k2hq.count(function(error?: any, count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 	});
 
@@ -1613,16 +1887,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Dump(FIFO)
 	//
-	it('k2hqueue - k2hqueue::Dump(FIFO)', function(done){	// eslint-disable-line no-undef
-		var	fs		= require('fs');
-		var	k2hfile	= '/tmp/test02_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Dump(FIFO)', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test02_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1634,7 +1907,7 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
 		// dump
-		var	fd = fs.openSync('/tmp/result_queue_02_tmp.log', 'w');
+		const fd: number = fs.openSync('/tmp/result_queue_02_tmp.log', 'w');
 		expect(k2hq.dump(fd)).to.be.a('boolean').to.be.true;
 		fs.closeSync(fd);
 
@@ -1648,15 +1921,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Push(LIFO nopass) - No Callback
 	//
-	it('k2hqueue - k2hqueue::Push(LIFO nopass) - No Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Push(LIFO nopass) - No Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1664,8 +1937,12 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
-		var	values	= ['data1', 'data2', 'data3'];
-		var	qcount	= 0;
+		const values: string[]	= [
+			'data1',
+			'data2',
+			'data3'
+		];
+		let	qcount: number	= 0;
 		for(var val in values){
 			expect(k2hq.push(values[val])).to.be.a('boolean').to.be.true;
 			++qcount;
@@ -1687,15 +1964,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Push(LIFO pass) - No Callback
 	//
-	it('k2hqueue - k2hqueue::Push(LIFO pass) - No Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Push(LIFO pass) - No Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1703,9 +1980,13 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
-		var	values	= ['data1', 'data2', 'data3'];
-		var	qcount	= 0;
-		for(var val in values){
+		const values: string[]	= [
+			'data1',
+			'data2',
+			'data3'
+		];
+		let	qcount: number	= 0;
+		for(const val in values){
 			expect(k2hq.push(values[val], 'mypass')).to.be.a('boolean').to.be.true;
 			++qcount;
 			expect(k2hq.count()).to.equal(qcount);
@@ -1726,15 +2007,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Push(LIFO nopass) - on Callback
 	//
-	it('k2hqueue - k2hqueue::Push(LIFO nopass) - on Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Push(LIFO nopass) - on Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1742,22 +2023,27 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set on(push) callback
-		expect(k2hq.on('push', function(error)
+		expect(k2hq.on('push', function(error?: any)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check queue
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
-			expect(k2hq.count()).to.equal(1);
-			expect(k2hq.pop()).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check queue
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				expect(k2hq.count()).to.equal(1);
+				expect(k2hq.pop()).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.off('push');
+				// unset
+				k2hq.off('push');
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
@@ -1767,15 +2053,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Push(LIFO pass) - on Callback
 	//
-	it('k2hqueue - k2hqueue::Push(LIFO pass) - on Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Push(LIFO pass) - on Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1783,22 +2069,27 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set on(push) callback
-		expect(k2hq.on('push', function(error)
+		expect(k2hq.on('push', function(error?: any)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check queue
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
-			expect(k2hq.count()).to.equal(1);
-			expect(k2hq.pop('mypass')).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check queue
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				expect(k2hq.count()).to.equal(1);
+				expect(k2hq.pop('mypass')).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.off('push');
+				// unset
+				k2hq.off('push');
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
@@ -1808,15 +2099,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Push(LIFO nopass) - onPush Callback
 	//
-	it('k2hqueue - k2hqueue::Push(LIFO nopass) - onPush Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Push(LIFO nopass) - onPush Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1824,22 +2115,27 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set onPush callback
-		expect(k2hq.onPush(function(error)
+		expect(k2hq.onPush(function(error?: any)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check queue
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
-			expect(k2hq.count()).to.equal(1);
-			expect(k2hq.pop()).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check queue
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				expect(k2hq.count()).to.equal(1);
+				expect(k2hq.pop()).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offPush();
+				// unset
+				k2hq.offPush();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
@@ -1849,15 +2145,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Push(LIFO pass) - onPush Callback
 	//
-	it('k2hqueue - k2hqueue::Push(LIFO pass) - onPush Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Push(LIFO pass) - onPush Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1865,22 +2161,27 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set onPush callback
-		expect(k2hq.onPush(function(error)
+		expect(k2hq.onPush(function(error?: any)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check queue
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
-			expect(k2hq.count()).to.equal(1);
-			expect(k2hq.pop('mypass')).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check queue
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				expect(k2hq.count()).to.equal(1);
+				expect(k2hq.pop('mypass')).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offPush();
+				// unset
+				k2hq.offPush();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
@@ -1890,15 +2191,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Push(LIFO nopass) - inline Callback
 	//
-	it('k2hqueue - k2hqueue::Push(LIFO nopass) - inline Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Push(LIFO nopass) - inline Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1906,34 +2207,39 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
-		expect(k2hq.push('data1', function(error)
+		expect(k2hq.push('data1', function(error?: any)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check queue
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
-			expect(k2hq.count()).to.equal(1);
-			expect(k2hq.pop()).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check queue
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				expect(k2hq.count()).to.equal(1);
+				expect(k2hq.pop()).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 	});
 
 	//
 	// k2hqueue::Push(LIFO pass) - inline Callback
 	//
-	it('k2hqueue - k2hqueue::Push(LIFO pass) - inline Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Push(LIFO pass) - inline Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1941,22 +2247,27 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
-		expect(k2hq.push('data1', 'mypass', function(error)
+		expect(k2hq.push('data1', 'mypass', function(error?: any)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check queue
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
-			expect(k2hq.count()).to.equal(1);
-			expect(k2hq.pop('mypass')).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check queue
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				expect(k2hq.count()).to.equal(1);
+				expect(k2hq.pop('mypass')).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offPush();
+				// unset
+				k2hq.offPush();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 	});
 
@@ -1971,15 +2282,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Pop(LIFO nopass) - on Callback
 	//
-	it('k2hqueue - k2hqueue::Pop(LIFO nopass) - on Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Pop(LIFO nopass) - on Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -1987,20 +2298,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set on(pop) callback
-		expect(k2hq.on('pop', function(error, data)
+		expect(k2hq.on('pop', function(error?: any, data?: string | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.off('pop');
+				// unset
+				k2hq.off('pop');
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
@@ -2013,15 +2329,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Pop(LIFO pass) - on Callback
 	//
-	it('k2hqueue - k2hqueue::Pop(LIFO pass) - on Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Pop(LIFO pass) - on Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2029,20 +2345,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set on(pop) callback
-		expect(k2hq.on('pop', function(error, data)
+		expect(k2hq.on('pop', function(error?: any, data?: string | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.off('pop');
+				// unset
+				k2hq.off('pop');
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
@@ -2055,15 +2376,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Pop(LIFO nopass) - onPop Callback
 	//
-	it('k2hqueue - k2hqueue::Pop(LIFO nopass) - onPop Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Pop(LIFO nopass) - onPop Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2071,20 +2392,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set onPop callback
-		expect(k2hq.onPop(function(error, data)
+		expect(k2hq.onPop(function(error?: any, data?: string | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offPop();
+				// unset
+				k2hq.offPop();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
@@ -2097,15 +2423,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Pop(LIFO pass) - onPop Callback
 	//
-	it('k2hqueue - k2hqueue::Pop(LIFO pass) - onPop Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Pop(LIFO pass) - onPop Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2113,20 +2439,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set onPop callback
-		expect(k2hq.onPop(function(error, data)
+		expect(k2hq.onPop(function(error?: any, data?: string | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offPop();
+				// unset
+				k2hq.offPop();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
@@ -2139,15 +2470,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Pop(LIFO nopass) - inline Callback
 	//
-	it('k2hqueue - k2hqueue::Pop(LIFO nopass) - inline Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Pop(LIFO nopass) - inline Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2158,32 +2489,37 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.push('data1')).to.be.a('boolean').to.be.true;
 
 		// pop queue(no pass)
-		expect(k2hq.pop(function(error, data)
+		expect(k2hq.pop(function(error?: any, data?: string | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 	});
 
 	//
 	// k2hqueue::Pop(LIFO pass) - inline Callback
 	//
-	it('k2hqueue - k2hqueue::Pop(LIFO pass) - inline Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Pop(LIFO pass) - inline Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2194,17 +2530,22 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.push('data1', 'mypass')).to.be.a('boolean').to.be.true;
 
 		// pop queue(pass)
-		expect(k2hq.pop('mypass', function(error, data)
+		expect(k2hq.pop('mypass', function(error?: any, data?: string | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 	});
 
@@ -2214,15 +2555,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Read(LIFO nopass) - No Callback
 	//
-	it('k2hqueue - k2hqueue::Read(LIFO nopass) - No Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Read(LIFO nopass) - No Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2230,9 +2571,12 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
-		var	values	= ['data1', 'data2'];
-		var	qcount	= 0;
-		for(var val in values){
+		const values: string[]	= [
+			'data1',
+			'data2'
+		];
+		let	qcount: number	= 0;
+		for(const val in values){
 			expect(k2hq.push(values[val])).to.be.a('boolean').to.be.true;
 			++qcount;
 			expect(k2hq.count()).to.equal(qcount);
@@ -2253,15 +2597,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Read(LIFO pass) - No Callback
 	//
-	it('k2hqueue - k2hqueue::Read(LIFO pass) - No Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Read(LIFO pass) - No Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2269,9 +2613,12 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
-		var	values	= ['data1', 'data2'];
-		var	qcount	= 0;
-		for(var val in values){
+		const values: string[]	= [
+			'data1',
+			'data2'
+		];
+		let	qcount: number	= 0;
+		for(const val in values){
 			expect(k2hq.push(values[val], 'mypass')).to.be.a('boolean').to.be.true;
 			++qcount;
 			expect(k2hq.count()).to.equal(qcount);
@@ -2292,15 +2639,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Read(LIFO nopass) - on Callback
 	//
-	it('k2hqueue - k2hqueue::Read(LIFO nopass) - on Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Read(LIFO nopass) - on Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2308,20 +2655,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set on(read) callback
-		expect(k2hq.on('read', function(error, data)
+		expect(k2hq.on('read', function(error?: any, data?: string | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.off('read');
+				// unset
+				k2hq.off('read');
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
@@ -2334,15 +2686,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Read(LIFO pass) - on Callback
 	//
-	it('k2hqueue - k2hqueue::Read(LIFO pass) - on Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Read(LIFO pass) - on Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2350,20 +2702,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set on(read) callback
-		expect(k2hq.on('read', function(error, data)
+		expect(k2hq.on('read', function(error?: any, data?: string | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.off('read');
+				// unset
+				k2hq.off('read');
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
@@ -2376,15 +2733,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Read(LIFO nopass) - onRead Callback
 	//
-	it('k2hqueue - k2hqueue::Read(LIFO nopass) - onRead Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Read(LIFO nopass) - onRead Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2392,20 +2749,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set onRead callback
-		expect(k2hq.onRead(function(error, data)
+		expect(k2hq.onRead(function(error?: any, data?: string | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offRead();
+				// unset
+				k2hq.offRead();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
@@ -2418,15 +2780,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Read(LIFO pass) - onRead Callback
 	//
-	it('k2hqueue - k2hqueue::Read(LIFO pass) - onRead Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Read(LIFO pass) - onRead Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2434,20 +2796,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set onRead callback
-		expect(k2hq.onRead(function(error, data)
+		expect(k2hq.onRead(function(error?: any, data?: string | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offRead();
+				// unset
+				k2hq.offRead();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
@@ -2460,15 +2827,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Read(LIFO nopass) - inline Callback
 	//
-	it('k2hqueue - k2hqueue::Read(LIFO nopass) - inline Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Read(LIFO nopass) - inline Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2479,32 +2846,37 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.push('data1')).to.be.a('boolean').to.be.true;
 
 		// read queue(no pass)
-		expect(k2hq.read(function(error, data)
+		expect(k2hq.read(function(error?: any, data?: string | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 	});
 
 	//
 	// k2hqueue::Read(LIFO pass) - inline Callback
 	//
-	it('k2hqueue - k2hqueue::Read(LIFO pass) - inline Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Read(LIFO pass) - inline Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2515,17 +2887,22 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.push('data1', 'mypass')).to.be.a('boolean').to.be.true;
 
 		// read queue(pass)
-		expect(k2hq.read('mypass', function(error, data)
+		expect(k2hq.read('mypass', function(error?: any, data?: string | null)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(data).to.equal('data1');
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(data).to.equal('data1');
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 	});
 
@@ -2535,15 +2912,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Remove(LIFO nopass) - No Callback
 	//
-	it('k2hqueue - k2hqueue::Remove(LIFO nopass) - No Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Remove(LIFO nopass) - No Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2551,9 +2928,13 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
-		var	values	= ['data1', 'data2', 'data3'];
-		var	qcount	= 0;
-		for(var val in values){
+		const values: string[]	= [
+			'data1',
+			'data2',
+			'data3'
+		];
+		let	qcount: number	= 0;
+		for(const val in values){
 			expect(k2hq.push(values[val])).to.be.a('boolean').to.be.true;
 			++qcount;
 			expect(k2hq.count()).to.equal(qcount);
@@ -2574,15 +2955,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Remove(LIFO pass) - No Callback
 	//
-	it('k2hqueue - k2hqueue::Remove(LIFO pass) - No Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Remove(LIFO pass) - No Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2590,9 +2971,13 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
-		var	values	= ['data1', 'data2', 'data3'];
-		var	qcount	= 0;
-		for(var val in values){
+		const values: string[]	= [
+			'data1',
+			'data2',
+			'data3'
+		];
+		let	qcount: number	= 0;
+		for(const val in values){
 			expect(k2hq.push(values[val], 'mypass')).to.be.a('boolean').to.be.true;
 			++qcount;
 			expect(k2hq.count()).to.equal(qcount);
@@ -2613,15 +2998,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Remove(LIFO nopass) - on Callback
 	//
-	it('k2hqueue - k2hqueue::Remove(LIFO nopass) - on Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Remove(LIFO nopass) - on Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2629,20 +3014,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set on(remove) callback
-		expect(k2hq.on('remove', function(error, remove_count)
+		expect(k2hq.on('remove', function(error?: any, remove_count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(remove_count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(remove_count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.off('remove');
+				// unset
+				k2hq.off('remove');
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
@@ -2655,15 +3045,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Remove(LIFO pass) - on Callback
 	//
-	it('k2hqueue - k2hqueue::Remove(LIFO pass) - on Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Remove(LIFO pass) - on Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2671,20 +3061,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set on(remove) callback
-		expect(k2hq.on('remove', function(error, remove_count)
+		expect(k2hq.on('remove', function(error?: any, remove_count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(remove_count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(remove_count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.off('remove');
+				// unset
+				k2hq.off('remove');
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
@@ -2697,15 +3092,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Remove(LIFO nopass) - onRemove Callback
 	//
-	it('k2hqueue - k2hqueue::Remove(LIFO nopass) - onRemove Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Remove(LIFO nopass) - onRemove Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2713,20 +3108,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set onRemove callback
-		expect(k2hq.onRemove(function(error, remove_count)
+		expect(k2hq.onRemove(function(error?: any, remove_count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(remove_count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(remove_count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offRemove();
+				// unset
+				k2hq.offRemove();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
@@ -2739,15 +3139,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Remove(LIFO pass) - onRemove Callback
 	//
-	it('k2hqueue - k2hqueue::Remove(LIFO pass) - onRemove Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Remove(LIFO pass) - onRemove Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2755,20 +3155,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set onRemove callback
-		expect(k2hq.onRemove(function(error, remove_count)
+		expect(k2hq.onRemove(function(error?: any, remove_count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(remove_count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(remove_count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offRemove();
+				// unset
+				k2hq.offRemove();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
@@ -2781,15 +3186,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Remove(LIFO nopass) - inline Callback
 	//
-	it('k2hqueue - k2hqueue::Remove(LIFO nopass) - inline Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Remove(LIFO nopass) - inline Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2800,32 +3205,37 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.push('data1')).to.be.a('boolean').to.be.true;
 
 		// remove queue(no pass)
-		expect(k2hq.remove(1, function(error, remove_count)
+		expect(k2hq.remove(1, function(error?: any, remove_count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(remove_count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(remove_count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 	});
 
 	//
 	// k2hqueue::Remove(LIFO pass) - inline Callback
 	//
-	it('k2hqueue - k2hqueue::Remove(LIFO pass) - inline Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Remove(LIFO pass) - inline Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2836,17 +3246,22 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.push('data1', 'mypass')).to.be.a('boolean').to.be.true;
 
 		// remove queue(pass)
-		expect(k2hq.remove(1, 'mypass', function(error, remove_count)
+		expect(k2hq.remove(1, 'mypass', function(error?: any, remove_count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(remove_count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
+				// check data
+				expect(remove_count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 	});
 
@@ -2856,15 +3271,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Count(LIFO nopass) - No Callback
 	//
-	it('k2hqueue - k2hqueue::Count(LIFO nopass) - No Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Count(LIFO nopass) - No Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2872,9 +3287,13 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
-		var	values	= ['data1', 'data2', 'data3'];
-		var	qcount	= 0;
-		for(var val in values){
+		const values: string[]	= [
+			'data1',
+			'data2',
+			'data3'
+		];
+		let	qcount: number	= 0;
+		for(const val in values){
 			expect(k2hq.push(values[val])).to.be.a('boolean').to.be.true;
 			++qcount;
 			expect(k2hq.count()).to.equal(qcount);
@@ -2891,15 +3310,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Count(LIFO pass) - No Callback
 	//
-	it('k2hqueue - k2hqueue::Count(LIFO pass) - No Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Count(LIFO pass) - No Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2907,9 +3326,13 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
-		var	values	= ['data1', 'data2', 'data3'];
-		var	qcount	= 0;
-		for(var val in values){
+		const values: string[]	= [
+			'data1',
+			'data2',
+			'data3'
+		];
+		let	qcount: number	= 0;
+		for(const val in values){
 			expect(k2hq.push(values[val], 'mypass')).to.be.a('boolean').to.be.true;
 			++qcount;
 			expect(k2hq.count()).to.equal(qcount);
@@ -2926,15 +3349,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Count(LIFO nopass) - on Callback
 	//
-	it('k2hqueue - k2hqueue::Count(LIFO nopass) - on Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Count(LIFO nopass) - on Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2942,20 +3365,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set on(count) callback
-		expect(k2hq.on('count', function(error, count)
+		expect(k2hq.on('count', function(error?: any, count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.off('count');
+				// unset
+				k2hq.off('count');
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
@@ -2968,15 +3396,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Count(LIFO pass) - on Callback
 	//
-	it('k2hqueue - k2hqueue::Count(LIFO pass) - on Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Count(LIFO pass) - on Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -2984,20 +3412,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set on(count) callback
-		expect(k2hq.on('count', function(error, count)
+		expect(k2hq.on('count', function(error?: any, count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.off('count');
+				// unset
+				k2hq.off('count');
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
@@ -3010,15 +3443,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Count(LIFO nopass) - onCount Callback
 	//
-	it('k2hqueue - k2hqueue::Count(LIFO nopass) - onCount Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Count(LIFO nopass) - onCount Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -3026,20 +3459,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set onCount Callback
-		expect(k2hq.onCount(function(error, count)
+		expect(k2hq.onCount(function(error?: any, count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offCount();
+				// unset
+				k2hq.offCount();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(no pass)
@@ -3052,15 +3490,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Count(LIFO pass) - onCount Callback
 	//
-	it('k2hqueue - k2hqueue::Count(LIFO pass) - onCount Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Count(LIFO pass) - onCount Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -3068,20 +3506,25 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.true;
 
 		// set onCount Callback
-		expect(k2hq.onCount(function(error, count)
+		expect(k2hq.onCount(function(error?: any, count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			// unset
-			k2hq.offCount();
+				// unset
+				k2hq.offCount();
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 
 		// push queue(pass)
@@ -3094,15 +3537,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Count(LIFO nopass) - inline Callback
 	//
-	it('k2hqueue - k2hqueue::Count(LIFO nopass) - inline Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Count(LIFO nopass) - inline Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -3113,32 +3556,37 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.push('data1')).to.be.a('boolean').to.be.true;
 
 		// count queue(no pass)
-		expect(k2hq.count(function(error, count)
+		expect(k2hq.count(function(error?: any, count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 	});
 
 	//
 	// k2hqueue::Count(LIFO pass) - inline Callback
 	//
-	it('k2hqueue - k2hqueue::Count(LIFO pass) - inline Callback', function(done){	// eslint-disable-line no-undef
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Count(LIFO pass) - inline Callback', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -3149,17 +3597,22 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.push('data1', 'mypass')).to.be.a('boolean').to.be.true;
 
 		// count queue(pass)
-		expect(k2hq.count(function(error, count)
+		expect(k2hq.count(function(error?: any, count?: number)
 		{
-			expect(error).to.be.null;
+			try{
+				expect(error).to.be.null;
 
-			// check data
-			expect(count).to.equal(1);
-			expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
+				// check data
+				expect(count).to.equal(1);
+				expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
-			expect(k2h.close()).to.be.a('boolean').to.be.true;
+				expect(k2h.close()).to.be.a('boolean').to.be.true;
 
-			done();
+				// end of this test case
+				done();
+			}catch(error){
+				done(error);
+			}
 		})).to.be.a('boolean').to.be.true;
 	});
 
@@ -3169,16 +3622,15 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 	//
 	// k2hqueue::Dump(LIFO)
 	//
-	it('k2hqueue - k2hqueue::Dump(LIFO)', function(done){	// eslint-disable-line no-undef
-		var	fs		= require('fs');
-		var	k2hfile	= '/tmp/test03_tmp.k2h';
-		var	k2h		= k2hash();
+	it('k2hqueue - k2hqueue::Dump(LIFO)', function(done: Mocha.Done){
+		const k2hfile: string	= '/tmp/test03_tmp.k2h';
+		const k2h: any			= k2hash();
 
 		// open
 		expect(k2h.open(k2hfile, false, false, false, 2, 4, 4, 128)).to.be.a('boolean').to.be.true;
 
 		// get queue
-		var k2hq	= k2h.getQueue();
+		const k2hq: any			= k2h.getQueue();
 		expect(typeof k2hq).to.equal('object');
 
 		// init queue & check
@@ -3190,7 +3642,7 @@ describe('K2HQUEUE', function(){						// eslint-disable-line no-undef
 		expect(k2hq.isEmpty()).to.be.a('boolean').to.be.false;
 
 		// dump
-		var	fd = fs.openSync('/tmp/result_queue_03_tmp.log', 'w');
+		const fd: number = fs.openSync('/tmp/result_queue_03_tmp.log', 'w');
 		expect(k2hq.dump(fd)).to.be.a('boolean').to.be.true;
 		fs.closeSync(fd);
 

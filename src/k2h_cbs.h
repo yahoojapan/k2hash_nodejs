@@ -21,32 +21,36 @@
 #ifndef K2H_CBS_H
 #define K2H_CBS_H
 
+#include <string>
+#include <unordered_map>
 #include "k2h_common.h"
 
 //---------------------------------------------------------
 // Typedefs
 //---------------------------------------------------------
-typedef std::map<std::string, Nan::Callback*>	cbsmap;
+typedef std::unordered_map<std::string, Napi::FunctionReference>	cbsmap;
 
 //---------------------------------------------------------
 // StackEmitCB Class
 //---------------------------------------------------------
 class StackEmitCB
 {
-	protected:
-		cbsmap			EmitCbsMap;
-		volatile int	lockval;				// lock variable for mapping
-
-	protected:
-		Nan::Callback* RawFind(const char* pemitname);
-
 	public:
 		StackEmitCB();
 		virtual ~StackEmitCB();
 
-		Nan::Callback* Find(const char* pemitname);
-		bool Set(const char* pemitname, Nan::Callback* cbfunc);
-		bool Unset(const char* pemitname);
+		// Set returns true if set succeeded
+		bool Set(const std::string& emitter, const Napi::Function& cb);
+
+		// Unset returns true if removed
+		bool Unset(const std::string& emitter);
+
+		// Find returns pointer to FunctionReference if set, otherwise nullptr
+		Napi::FunctionReference* Find(const std::string& emitter);
+
+	private:
+		cbsmap			EmitCbsMap;
+		volatile int	lockval;				// lock variable for mapping
 };
 
 //---------------------------------------------------------
@@ -55,14 +59,14 @@ class StackEmitCB
 inline const char* GetNormalizationEmitter(const char* emitter, const char*	emitters[])
 {
 	if(!emitter){
-		return NULL;
+		return nullptr;
 	}
 	for(const char** ptmp = &emitters[0]; ptmp && *ptmp; ++ptmp){
 		if(0 == strcasecmp(*ptmp, emitter)){
 			return *ptmp;
 		}
 	}
-	return NULL;
+	return nullptr;
 }
 
 #endif

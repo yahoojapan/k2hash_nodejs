@@ -20,7 +20,10 @@
 
 'use strict';
 
-module.exports = require('bindings')('k2hash');
+//
+// Thin CommonJS re-export to built CJS artifact (safe for existing users)
+//
+module.exports = require('./build/cjs/index.js');
 
 /*
  * Local variables:

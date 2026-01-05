@@ -34,69 +34,76 @@
 // Callback function:	function(string error)
 //
 //---------------------------------------------------------
-class K2hqPushWorker : public Nan::AsyncWorker
+class K2hqPushAsyncWorker : public Napi::AsyncWorker
 {
 	public:
-		K2hqPushWorker(Nan::Callback* callback, K2HQueue* pobj, const char* pdata, const char* ppass, const time_t* pexpire) : Nan::AsyncWorker(callback), pk2hqobj(pobj), is_data_set(false), strdata(pdata ? pdata : ""), is_pass_set(false), strpass(ppass ? ppass : ""), expire(pexpire ? *pexpire : 0)
+		K2hqPushAsyncWorker(const Napi::Function& callback, K2HQueue* pobj, const char* pdata, const char* ppass, const time_t* pexpire) :
+			Napi::AsyncWorker(callback), _callbackRef(Napi::Persistent(callback)), _pk2hqobj(pobj), _is_data_set(nullptr != pdata), _strdata(pdata ? pdata : ""), _is_pass_set(nullptr != ppass), _strpass(ppass ? ppass : ""), _expire(pexpire ? *pexpire : 0)
 		{
-			is_data_set	= (NULL != pdata);
-			is_pass_set	= (NULL != ppass);
+			_callbackRef.Ref();
 		}
-		~K2hqPushWorker() {}
 
-		void Execute()
+		~K2hqPushAsyncWorker()
 		{
-			if(!pk2hqobj){
-				Nan::ReferenceError("No object is associated to async worker");
+			if(_callbackRef){
+				_callbackRef.Unref();
+				_callbackRef.Reset();
+			}
+		}
+
+		// Runs on worker thread
+		void Execute() override
+		{
+			if(!_pk2hqobj){
+				SetError("No object is associated to async worker");
 				return;
 			}
-			if(!is_data_set){
-				Nan::ReferenceError("Specified data is empty(null)");
+			if(!_is_data_set){
+				SetError("Specified data is empty(null)");
 				return;
 			}
 
 			// push
-			if(!pk2hqobj->Push(reinterpret_cast<const unsigned char*>(strdata.c_str()), (strdata.length() + 1), NULL, (is_pass_set ? strpass.c_str() : NULL), (expire > 0 ? &expire : NULL))){
-				// set error
-				this->SetErrorMessage("Failed to push data for k2hqueue.");
+			if(!_pk2hqobj->Push(reinterpret_cast<const unsigned char*>(_strdata.c_str()), (_strdata.length() + 1), NULL, (_is_pass_set ? _strpass.c_str() : NULL), (_expire > 0 ? &_expire : NULL))){
+				SetError("Failed to push data for k2hqueue.");
+				return;
 			}
 		}
 
-		void HandleOKCallback()
+		// handler for success
+		void OnOK() override
 		{
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::Null() };
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			if(_callbackRef && _callbackRef.Value().IsFunction()){
+				_callbackRef.Call({ env.Null() });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				Napi::TypeError::New(env, "Internal error in async worker").ThrowAsJavaScriptException();
 			}
 		}
 
-        void HandleErrorCallback()
-        {
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::New<v8::String>(this->ErrorMessage()).ToLocalChecked() };
+		// handler for failure (by calling SetError)
+		void OnError(const Napi::Error& err) override
+		{
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			if(_callbackRef && _callbackRef.Value().IsFunction()){
+				_callbackRef.Call({ Napi::String::New(env, err.Message()) });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				Napi::TypeError::New(env, "Internal error in async worker").ThrowAsJavaScriptException();
 			}
-        }
+		}
 
 	private:
-		K2HQueue*	pk2hqobj;
-		bool		is_data_set;
-		std::string	strdata;
-		bool		is_pass_set;
-		std::string	strpass;
-		time_t		expire;
+		Napi::FunctionReference	_callbackRef;
+		K2HQueue*				_pk2hqobj;
+		bool					_is_data_set;
+		std::string				_strdata;
+		bool					_is_pass_set;
+		std::string				_strpass;
+		time_t					_expire;
 };
 
 //---------------------------------------------------------
@@ -106,59 +113,66 @@ class K2hqPushWorker : public Nan::AsyncWorker
 // Callback function:	function(string error, int count)
 //
 //---------------------------------------------------------
-class K2hqCountWorker : public Nan::AsyncWorker
+class K2hqCountAsyncWorker : public Napi::AsyncWorker
 {
 	public:
-		K2hqCountWorker(Nan::Callback* callback, K2HQueue* pobj) : Nan::AsyncWorker(callback), pk2hqobj(pobj), rescount(0) {}
-		~K2hqCountWorker() {}
-
-		void Execute()
+		K2hqCountAsyncWorker(const Napi::Function& callback, K2HQueue* pobj) :
+			Napi::AsyncWorker(callback), _callbackRef(Napi::Persistent(callback)), _pk2hqobj(pobj), _rescount(0)
 		{
-			if(!pk2hqobj){
-				Nan::ReferenceError("No object is associated to async worker");
+			_callbackRef.Ref();
+		}
+
+		~K2hqCountAsyncWorker()
+		{
+			if(_callbackRef){
+				_callbackRef.Unref();
+				_callbackRef.Reset();
+			}
+		}
+
+		// Runs on worker thread
+		void Execute() override
+		{
+			if(NULL == _pk2hqobj){
+				// Report an error so OnError will be invoked.
+				SetError("No object is associated to async worker");
 				return;
 			}
 
 			// count
-			rescount = pk2hqobj->GetCount();
-
-			// [NOTE]
-			// This execution does not return error at any case.
+			_rescount = static_cast<int>(_pk2hqobj->GetCount());
 		}
 
-		void HandleOKCallback()
+		// handler for success
+		void OnOK() override
 		{
-			Nan::HandleScope		scope;
-			const int				argc		= 2;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::Null(), Nan::New(rescount) };
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			if(_callbackRef && _callbackRef.Value().IsFunction()){
+				_callbackRef.Call({ env.Null(), Napi::Number::New(env, _rescount) });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				Napi::TypeError::New(env, "Internal error in async worker").ThrowAsJavaScriptException();
 			}
 		}
 
-        void HandleErrorCallback()
-        {
-			// This method does not call anytime.
-			//
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::New<v8::String>(this->ErrorMessage()).ToLocalChecked() };
+		// handler for failure (by calling SetError)
+		void OnError(const Napi::Error& err) override
+		{
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			if(_callbackRef && _callbackRef.Value().IsFunction()){
+				_callbackRef.Call({ Napi::String::New(env, err.Message()) });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				Napi::TypeError::New(env, "Internal error in async worker").ThrowAsJavaScriptException();
 			}
-        }
+		}
 
 	private:
-		K2HQueue*	pk2hqobj;
-		int			rescount;
+		Napi::FunctionReference	_callbackRef;
+		K2HQueue*				_pk2hqobj;
+		int						_rescount;
 };
 
 //---------------------------------------------------------
@@ -168,71 +182,81 @@ class K2hqCountWorker : public Nan::AsyncWorker
 // Callback function:	function(string error[, string data])
 //
 //---------------------------------------------------------
-class K2hqReadWorker : public Nan::AsyncWorker
+class K2hqReadAsyncWorker : public Napi::AsyncWorker
 {
 	public:
-		K2hqReadWorker(Nan::Callback* callback, K2HQueue* pobj, int pos, const char* ppass) : Nan::AsyncWorker(callback), pk2hqobj(pobj), getpos(pos), is_pass_set(NULL != ppass), strpass(ppass ? ppass : ""), resdata("") {}
-		~K2hqReadWorker() {}
-
-		void Execute()
+		K2hqReadAsyncWorker(const Napi::Function& callback, K2HQueue* pobj, int pos, const char* ppass) :
+			Napi::AsyncWorker(callback), _callbackRef(Napi::Persistent(callback)), _pk2hqobj(pobj), _getpos(pos), _is_pass_set(NULL != ppass), _strpass(ppass ? ppass : ""), _resdata()
 		{
-			if(!pk2hqobj){
-				Nan::ReferenceError("No object is associated to async worker");
+			_callbackRef.Ref();
+		}
+
+		~K2hqReadAsyncWorker()
+		{
+			if(_callbackRef){
+				_callbackRef.Unref();
+				_callbackRef.Reset();
+			}
+		}
+
+		// Runs on worker thread
+		void Execute() override
+		{
+			if(NULL == _pk2hqobj){
+				SetError("No object is associated to async worker");
 				return;
 			}
-			if(0 > getpos){
-				Nan::ReferenceError("Specified position is under zero.");
+			if(_getpos < 0){
+				SetError("Specified position is under zero.");
 				return;
 			}
 
 			// read
 			unsigned char*	pdata	= NULL;
 			size_t			datalen	= 0;
-			bool			result	= pk2hqobj->Read(&pdata, datalen, getpos, (is_pass_set ? strpass.c_str() : NULL));
+			bool			result	= _pk2hqobj->Read(&pdata, datalen, _getpos, (_is_pass_set ? _strpass.c_str() : NULL));
 			if(!result || !pdata || 0 == datalen){
-				// set error
-				this->SetErrorMessage("Failed to read data for k2hqueue.");
+				SetError("Failed to read data for k2hqueue.");
 			}else{
-				// copy result
-				resdata = std::string(reinterpret_cast<const char*>(pdata), datalen);
+				_resdata.assign(reinterpret_cast<const char*>(pdata), static_cast<size_t>(strlen(reinterpret_cast<const char*>(pdata))));
 			}
 			K2H_Free(pdata);
 		}
 
-		void HandleOKCallback()
+		// handler for success
+		void OnOK() override
 		{
-			Nan::HandleScope		scope;
-			const int				argc		= 2;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::Null(), Nan::New<v8::String>(resdata.c_str()).ToLocalChecked() };
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			if(_callbackRef && _callbackRef.Value().IsFunction()){
+				Napi::String	val = Napi::String::New(env, _resdata.c_str(), static_cast<size_t>(strlen(_resdata.c_str())));
+				_callbackRef.Call({ env.Null(), val });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				Napi::TypeError::New(env, "Internal error in async worker").ThrowAsJavaScriptException();
 			}
 		}
 
-        void HandleErrorCallback()
-        {
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::New<v8::String>(this->ErrorMessage()).ToLocalChecked() };
+		// handler for failure (by calling SetError)
+		void OnError(const Napi::Error& err) override
+		{
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			if(_callbackRef && _callbackRef.Value().IsFunction()){
+				_callbackRef.Call({ Napi::String::New(env, err.Message()) });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				Napi::TypeError::New(env, "Internal error in async worker").ThrowAsJavaScriptException();
 			}
-        }
+		}
 
 	private:
-		K2HQueue*	pk2hqobj;
-		int			getpos;
-		bool		is_pass_set;
-		std::string	strpass;
-		std::string	resdata;
+		Napi::FunctionReference	_callbackRef;
+		K2HQueue*				_pk2hqobj;
+		int						_getpos;
+		bool					_is_pass_set;
+		std::string				_strpass;
+		std::string				_resdata;
 };
 
 //---------------------------------------------------------
@@ -242,66 +266,76 @@ class K2hqReadWorker : public Nan::AsyncWorker
 // Callback function:	function(string error[, string data])
 //
 //---------------------------------------------------------
-class K2hqPopWorker : public Nan::AsyncWorker
+class K2hqPopAsyncWorker : public Napi::AsyncWorker
 {
 	public:
-		K2hqPopWorker(Nan::Callback* callback, K2HQueue* pobj, const char* ppass) : Nan::AsyncWorker(callback), pk2hqobj(pobj), is_pass_set(NULL != ppass), strpass(ppass ? ppass : ""), resdata("") {}
-		~K2hqPopWorker() {}
-
-		void Execute()
+		K2hqPopAsyncWorker(const Napi::Function& callback, K2HQueue* pobj, const char* ppass) :
+			Napi::AsyncWorker(callback), _callbackRef(Napi::Persistent(callback)), _pk2hqobj(pobj), _is_pass_set(NULL != ppass), _strpass(ppass ? ppass : ""), _resdata()
 		{
-			if(!pk2hqobj){
-				Nan::ReferenceError("No object is associated to async worker");
+			_callbackRef.Ref();
+		}
+
+		~K2hqPopAsyncWorker()
+		{
+			if(_callbackRef){
+				_callbackRef.Unref();
+				_callbackRef.Reset();
+			}
+		}
+
+		// Runs on worker thread
+		void Execute() override
+		{
+			if(!_pk2hqobj){
+				SetError("No object is associated to async worker");
 				return;
 			}
 
 			// pop
 			unsigned char*	pdata	= NULL;
 			size_t			datalen	= 0;
-			bool			result	= pk2hqobj->Pop(&pdata, datalen, NULL, (is_pass_set ? strpass.c_str() : NULL));
+			bool			result	= _pk2hqobj->Pop(&pdata, datalen, NULL, (_is_pass_set ? _strpass.c_str() : NULL));
 			if(!result || !pdata || 0 == datalen){
-				// set error
-				this->SetErrorMessage("Failed to pop data for k2hqueue.");
+				SetError("Failed to pop data for k2hqueue.");
 			}else{
-				// copy result
-				resdata = std::string(reinterpret_cast<const char*>(pdata), datalen);
+				_resdata.assign(reinterpret_cast<const char*>(pdata), static_cast<size_t>(strlen(reinterpret_cast<const char*>(pdata))));
 			}
 			K2H_Free(pdata);
 		}
 
-		void HandleOKCallback()
+		// handler for success
+		void OnOK() override
 		{
-			Nan::HandleScope		scope;
-			const int				argc		= 2;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::Null(), Nan::New<v8::String>(resdata.c_str()).ToLocalChecked() };
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			if(_callbackRef && _callbackRef.Value().IsFunction()){
+				Napi::String	val = Napi::String::New(env, _resdata.c_str(), static_cast<size_t>(strlen(_resdata.c_str())));
+				_callbackRef.Call({ env.Null(), val });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				Napi::TypeError::New(env, "Internal error in async worker").ThrowAsJavaScriptException();
 			}
 		}
 
-        void HandleErrorCallback()
-        {
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::New<v8::String>(this->ErrorMessage()).ToLocalChecked() };
+		// handler for failure (by calling SetError)
+		void OnError(const Napi::Error& err) override
+		{
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			if(_callbackRef && _callbackRef.Value().IsFunction()){
+				_callbackRef.Call({ Napi::String::New(env, err.Message()) });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				Napi::TypeError::New(env, "Internal error in async worker").ThrowAsJavaScriptException();
 			}
-        }
+		}
 
 	private:
-		K2HQueue*	pk2hqobj;
-		bool		is_pass_set;
-		std::string	strpass;
-		std::string	resdata;
+		Napi::FunctionReference	_callbackRef;
+		K2HQueue*				_pk2hqobj;
+		bool					_is_pass_set;
+		std::string				_strpass;
+		std::string				_resdata;
 };
 
 //---------------------------------------------------------
@@ -311,65 +345,76 @@ class K2hqPopWorker : public Nan::AsyncWorker
 // Callback function:	function(string error[, int removed_queue_count])
 //
 //---------------------------------------------------------
-class K2hqRemoveWorker : public Nan::AsyncWorker
+class K2hqRemoveAsyncWorker : public Napi::AsyncWorker
 {
 	public:
-		K2hqRemoveWorker(Nan::Callback* callback, K2HQueue* pobj, int count, const char* ppass) : Nan::AsyncWorker(callback), pk2hqobj(pobj), rmcount(count), is_pass_set(NULL != ppass), strpass(ppass ? ppass : ""), removed_count(0) {}
-		~K2hqRemoveWorker() {}
-
-		void Execute()
+		K2hqRemoveAsyncWorker(const Napi::Function& callback, K2HQueue* pobj, int count, const char* ppass) :
+			Napi::AsyncWorker(callback), _callbackRef(Napi::Persistent(callback)), _pk2hqobj(pobj), _rmcount(count), _is_pass_set(NULL != ppass), _strpass(ppass ? ppass : ""), _removed_count(0)
 		{
-			if(!pk2hqobj){
-				Nan::ReferenceError("No object is associated to async worker");
+			_callbackRef.Ref();
+		}
+
+		~K2hqRemoveAsyncWorker()
+		{
+			if(_callbackRef){
+				_callbackRef.Unref();
+				_callbackRef.Reset();
+			}
+		}
+
+		// Runs on worker thread
+		void Execute() override
+		{
+			if(!_pk2hqobj){
+				SetError("No object is associated to async worker");
 				return;
 			}
-			if(0 >= rmcount){
-				Nan::ReferenceError("Specified remove count is under 1.");
+			if(_rmcount <= 0){
+				SetError("Specified remove count is under 1.");
 				return;
 			}
 
 			// remove
-			removed_count = pk2hqobj->Remove(rmcount, NULL, NULL, (is_pass_set ? strpass.c_str() : NULL));
-			if(-1 == removed_count){
-				// set error
-				this->SetErrorMessage("Failed to remove queue for k2hqueue.");
+			_removed_count = _pk2hqobj->Remove(_rmcount, NULL, NULL, (_is_pass_set ? _strpass.c_str() : NULL));
+			if(-1 == _removed_count){
+				SetError("Failed to remove queue for k2hqueue.");
+				return;
 			}
 		}
 
-		void HandleOKCallback()
+		// handler for success
+		void OnOK() override
 		{
-			Nan::HandleScope		scope;
-			const int				argc		= 2;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::Null(), Nan::New(removed_count) };
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			if(_callbackRef && _callbackRef.Value().IsFunction()){
+				_callbackRef.Call({ env.Null(), Napi::Number::New(env, static_cast<double>(_removed_count)) });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				Napi::TypeError::New(env, "Internal error in async worker").ThrowAsJavaScriptException();
 			}
 		}
 
-        void HandleErrorCallback()
-        {
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::New<v8::String>(this->ErrorMessage()).ToLocalChecked() };
+		// handler for failure (by calling SetError)
+		void OnError(const Napi::Error& err) override
+		{
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			if(_callbackRef && _callbackRef.Value().IsFunction()){
+				_callbackRef.Call({ Napi::String::New(env, err.Message()) });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				Napi::TypeError::New(env, "Internal error in async worker").ThrowAsJavaScriptException();
 			}
-        }
+		}
 
 	private:
-		K2HQueue*	pk2hqobj;
-		int			rmcount;
-		bool		is_pass_set;
-		std::string	strpass;
-		int			removed_count;
+		Napi::FunctionReference	_callbackRef;
+		K2HQueue*				_pk2hqobj;
+		int						_rmcount;
+		bool					_is_pass_set;
+		std::string				_strpass;
+		int						_removed_count;
 };
 
 #endif

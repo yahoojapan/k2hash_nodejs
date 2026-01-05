@@ -22,7 +22,6 @@
 #include "k2h_queue.h"
 #include "k2h_queue_async.h"
 
-using namespace v8;
 using namespace std;
 
 //---------------------------------------------------------
@@ -44,37 +43,60 @@ const char*	stc_k2hq_emitters[] = {
 };
 
 //---------------------------------------------------------
-// Utility macros
+// Utility (using StackEmitCB Class)
 //---------------------------------------------------------
-#define	SetK2hqEmitterCallback(info, pos, pemitter) \
-		{ \
-			K2hQueue*	obj = Nan::ObjectWrap::Unwrap<K2hQueue>(info.This()); \
-			if(info.Length() <= pos){ \
-				Nan::ThrowSyntaxError("No callback is specified."); \
-				return; \
-			} \
-			Nan::Callback* cb = new Nan::Callback(); \
-			cb->SetFunction(info[pos].As<v8::Function>()); \
-			bool	result = obj->_cbs.Set(pemitter, cb); \
-			info.GetReturnValue().Set(Nan::New(result)); \
-		}
+static Napi::Value SetK2hqEmitterCallback(const Napi::CallbackInfo& info, size_t pos, const char* pemitter)
+{
+	Napi::Env env = info.Env();
 
-#define	UnsetK2hqEmitterCallback(info, pemitter) \
-		{ \
-			K2hQueue*	obj		= Nan::ObjectWrap::Unwrap<K2hQueue>(info.This()); \
-			bool		result	= obj->_cbs.Unset(pemitter); \
-			info.GetReturnValue().Set(Nan::New(result)); \
-		}
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hQueue::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hQueue instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hQueue* obj = Napi::ObjectWrap<K2hQueue>::Unwrap(info.This().As<Napi::Object>());
+
+	// check parameter
+	if(info.Length() <= pos){
+		Napi::TypeError::New(env, "No callback is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	if(!info[pos].IsFunction()){
+		Napi::TypeError::New(env, "The parameter is not callback function.").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	Napi::Function cb = info[pos].As<Napi::Function>();
+
+	// set
+	bool result = obj->_cbs.Set(std::string(pemitter), cb);
+	return Napi::Boolean::New(env, result);
+}
+
+static Napi::Value UnsetK2hqEmitterCallback(const Napi::CallbackInfo& info, const char* pemitter)
+{
+	Napi::Env env = info.Env();
+
+	// Unwrap
+	if(!info.This().IsObject() || !info.This().As<Napi::Object>().InstanceOf(K2hQueue::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hQueue* obj = Napi::ObjectWrap<K2hQueue>::Unwrap(info.This().As<Napi::Object>());
+
+	// unset
+	bool result = obj->_cbs.Unset(std::string(pemitter));
+	return Napi::Boolean::New(env, result);
+}
 
 //---------------------------------------------------------
 // K2hQueue Class
 //---------------------------------------------------------
-Nan::Persistent<Function>	K2hQueue::constructor;
+Napi::FunctionReference	K2hQueue::constructor;
 
 //---------------------------------------------------------
 // K2hQueue Methods
 //---------------------------------------------------------
-K2hQueue::K2hQueue() : _k2hqueue(), _cbs()
+K2hQueue::K2hQueue(const Napi::CallbackInfo& info) : Napi::ObjectWrap<K2hQueue>(info), _cbs(), _k2hqueue()
 {
 }
 
@@ -82,75 +104,90 @@ K2hQueue::~K2hQueue()
 {
 }
 
-void K2hQueue::Init(void)
+void K2hQueue::Init(Napi::Env env, Napi::Object exports)
 {
-	// Prepare constructor template
-	Local<FunctionTemplate>	tpl = Nan::New<FunctionTemplate>(New); 
-	tpl->SetClassName(Nan::New("K2hQueue").ToLocalChecked()); 
-	tpl->InstanceTemplate()->SetInternalFieldCount(1); 
+	Napi::Function funcs = DefineClass(env, "K2hQueue", {
 
-	// Prototype for event emitter
-	Nan::SetPrototypeMethod(tpl, "on",			On);
-	Nan::SetPrototypeMethod(tpl, "onPush",		OnPush);
-	Nan::SetPrototypeMethod(tpl, "onPop",		OnPop);
-	Nan::SetPrototypeMethod(tpl, "onCount",		OnCount);
-	Nan::SetPrototypeMethod(tpl, "onRead",		OnRead);
-	Nan::SetPrototypeMethod(tpl, "onRemove",	OnRemove);
-	Nan::SetPrototypeMethod(tpl, "off",			Off);
-	Nan::SetPrototypeMethod(tpl, "offPush",		OffPush);
-	Nan::SetPrototypeMethod(tpl, "offPop",		OffPop);
-	Nan::SetPrototypeMethod(tpl, "offCount",	OffCount);
-	Nan::SetPrototypeMethod(tpl, "offRead",		OffRead);
-	Nan::SetPrototypeMethod(tpl, "offRemove",	OffRemove);
+		// DefineClass normally handles the constructor internally. Therefore, there is no need
+		// to include a static wrapper New() in the class prototype, which works the same way as
+		// when using NAN.
+		// For reference, the following example shows how to declare New as a static method.
+		// (Registration is not normally required.)
+		//
+		//	K2hQueue::InstanceMethod("new",		&K2hQueue::New),
 
-	// Prototype
-	Nan::SetPrototypeMethod(tpl, "init",		Init);
-	Nan::SetPrototypeMethod(tpl, "push",		Push);
-	Nan::SetPrototypeMethod(tpl, "count",		Count);
-	Nan::SetPrototypeMethod(tpl, "isEmpty",		IsEmpty);
-	Nan::SetPrototypeMethod(tpl, "read",		Read);
-	Nan::SetPrototypeMethod(tpl, "pop",			Pop);
-	Nan::SetPrototypeMethod(tpl, "remove",		Remove);
-	Nan::SetPrototypeMethod(tpl, "dump",		Dump);
+		// Prototype for event emitter
+		K2hQueue::InstanceMethod("on",			&K2hQueue::On),
+		K2hQueue::InstanceMethod("onPush",		&K2hQueue::OnPush),
+		K2hQueue::InstanceMethod("onPop",		&K2hQueue::OnPop),
+		K2hQueue::InstanceMethod("onCount",		&K2hQueue::OnCount),
+		K2hQueue::InstanceMethod("onRead",		&K2hQueue::OnRead),
+		K2hQueue::InstanceMethod("onRemove",	&K2hQueue::OnRemove),
+		K2hQueue::InstanceMethod("off",			&K2hQueue::Off),
+		K2hQueue::InstanceMethod("offPush",		&K2hQueue::OffPush),
+		K2hQueue::InstanceMethod("offPop",		&K2hQueue::OffPop),
+		K2hQueue::InstanceMethod("offCount",	&K2hQueue::OffCount),
+		K2hQueue::InstanceMethod("offRead",		&K2hQueue::OffRead),
+		K2hQueue::InstanceMethod("offRemove",	&K2hQueue::OffRemove),
 
-	// Reset
-	constructor.Reset(Nan::GetFunction(tpl).ToLocalChecked());
+		// Prototype
+		K2hQueue::InstanceMethod("init",		&K2hQueue::Initialize),
+		K2hQueue::InstanceMethod("push",		&K2hQueue::Push),
+		K2hQueue::InstanceMethod("count",		&K2hQueue::Count),
+		K2hQueue::InstanceMethod("isEmpty",		&K2hQueue::IsEmpty),
+		K2hQueue::InstanceMethod("read",		&K2hQueue::Read),
+		K2hQueue::InstanceMethod("pop",			&K2hQueue::Pop),
+		K2hQueue::InstanceMethod("remove",		&K2hQueue::Remove),
+		K2hQueue::InstanceMethod("dump",		&K2hQueue::Dump)
+	});
+
+	constructor = Napi::Persistent(funcs);
+	constructor.SuppressDestruct();
+
+	// [NOTE]
+	// do NOT do exports.Set("K2hQueue", func) here if InitAll will return createFn.
+	//
 }
 
-NAN_METHOD(K2hQueue::New)
+Napi::Value K2hQueue::New(const Napi::CallbackInfo& info)
 {
-	if(info.IsConstructCall()){ 
+	if(info.IsConstructCall()){
 		// Invoked as constructor: new K2hQueue()
-		K2hQueue*	obj = new K2hQueue();
-		obj->Wrap(info.This()); 
-		info.GetReturnValue().Set(info.This()); 
-	}else{ 
-		// Invoked as plain function K2hQueue(), turn into construct call. 
-		const unsigned	argc		= 1;
-		Local<Value>	argv[argc]	= {info[0]}; 
-		Local<Function>	cons		= Nan::New<Function>(constructor); 
-		info.GetReturnValue().Set(Nan::NewInstance(cons, argc, argv).ToLocalChecked()); 
-	} 
+		// DefineClass 経由のコンストラクタが呼ばれているはずなので、ここでは this を返すだけで良い
+		return info.This();
+	}else{
+		// Invoked as plain function K2hQueue(), turn into construct call.
+		if(0 < info.Length()){
+			return constructor.New({info[0]});
+		}else{
+			return constructor.New({});
+		}
+	}
 }
 
-NAN_METHOD(K2hQueue::NewInstance)
+// NewInstance( no parameter )
+Napi::Object K2hQueue::NewInstance(Napi::Env env)
 {
-	const unsigned	argc		= 1;
-	Local<Value>	argv[argc]	= {info[0]}; 
-	Local<Function>	cons		= Nan::New<Function>(constructor); 
-	info.GetReturnValue().Set(Nan::NewInstance(cons, argc, argv).ToLocalChecked()); 
+	Napi::EscapableHandleScope scope(env);
+	Napi::Object obj = constructor.New({}).As<Napi::Object>();
+	return scope.Escape(napi_value(obj)).ToObject();
 }
 
-Local<Object> K2hQueue::GetInstance(Nan::NAN_METHOD_ARGS_TYPE info)
+// NewInstance( 1 parameter )
+Napi::Object K2hQueue::NewInstance(Napi::Env env, const Napi::Value& arg)
 {
-	Nan::EscapableHandleScope	scope;
+	Napi::EscapableHandleScope scope(env);
+	Napi::Object obj = constructor.New({ arg }).As<Napi::Object>();
+	return scope.Escape(napi_value(obj)).ToObject();
+}
 
-	const unsigned	argc		= 1;
-	Local<Value>	argv[argc]	= {info[0]}; 
-	Local<Function>	cons		= Nan::New<Function>(constructor); 
-	Local<Object> 	instance	= Nan::NewInstance(cons, argc, argv).ToLocalChecked();
-
-	return scope.Escape(instance);
+Napi::Object K2hQueue::GetInstance(const Napi::CallbackInfo& info)
+{
+	if(0 < info.Length()){
+		return K2hQueue::constructor.New({info[0]});
+	}else{
+		return K2hQueue::constructor.New({});
+	}
 }
 
 /// \defgroup nodejs_methods
@@ -171,28 +208,36 @@ Local<Object> K2hQueue::GetInstance(Nan::NAN_METHOD_ARGS_TYPE info)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hQueue::On)
+Napi::Value K2hQueue::On(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
+	// check
+    if(!info.This().IsObject()||!info.This().As<Napi::Object>().InstanceOf(K2hQueue::constructor.Value())){
+        Napi::TypeError::New(env, "Invalid this object(K2hQueue instance)").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("No handle emitter name is specified.");
-		return;
+		Napi::TypeError::New(env, "No handle emitter name is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}else if(info.Length() < 2){
-		Nan::ThrowSyntaxError("No callback is specified.");
-		return;
+		Napi::TypeError::New(env, "No callback is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
 	// check emitter name
-	Nan::Utf8String	emitter(info[0]);
-	const char*		pemitter;
-	if(NULL == (pemitter = GetNormalizationEmitter(*emitter, stc_k2hq_emitters))){
-		string	msg = "Unknown ";
-		msg			+= *emitter;
-		msg			+= " emitter";
-		Nan::ThrowSyntaxError(msg.c_str());
-		return;
+	std::string emitter  = info[0].ToString().Utf8Value();
+	const char* pemitter = GetNormalizationEmitter(emitter.c_str(), stc_k2hq_emitters);
+	if(!pemitter){
+		std::string	msg	= "Unknown ";
+		msg				+= emitter;
+		msg				+= " emitter";
+		Napi::TypeError::New(env, msg).ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
+
 	// add callback
-	SetK2hqEmitterCallback(info, 1, pemitter);
+	return SetK2hqEmitterCallback(info, 1, pemitter);
 }
 
 /**
@@ -208,9 +253,9 @@ NAN_METHOD(K2hQueue::On)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hQueue::OnPush)
+Napi::Value K2hQueue::OnPush(const Napi::CallbackInfo& info)
 {
-	SetK2hqEmitterCallback(info, 0, stc_k2hq_emitters[K2HQ_EMITTER_POS_PUSH]);
+	return SetK2hqEmitterCallback(info, 0, stc_k2hq_emitters[K2HQ_EMITTER_POS_PUSH]);
 }
 
 /**
@@ -226,9 +271,9 @@ NAN_METHOD(K2hQueue::OnPush)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hQueue::OnPop)
+Napi::Value K2hQueue::OnPop(const Napi::CallbackInfo& info)
 {
-	SetK2hqEmitterCallback(info, 0, stc_k2hq_emitters[K2HQ_EMITTER_POS_POP]);
+	return SetK2hqEmitterCallback(info, 0, stc_k2hq_emitters[K2HQ_EMITTER_POS_POP]);
 }
 
 /**
@@ -244,9 +289,9 @@ NAN_METHOD(K2hQueue::OnPop)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hQueue::OnCount)
+Napi::Value K2hQueue::OnCount(const Napi::CallbackInfo& info)
 {
-	SetK2hqEmitterCallback(info, 0, stc_k2hq_emitters[K2HQ_EMITTER_POS_COUNT]);
+	return SetK2hqEmitterCallback(info, 0, stc_k2hq_emitters[K2HQ_EMITTER_POS_COUNT]);
 }
 
 /**
@@ -262,9 +307,9 @@ NAN_METHOD(K2hQueue::OnCount)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hQueue::OnRead)
+Napi::Value K2hQueue::OnRead(const Napi::CallbackInfo& info)
 {
-	SetK2hqEmitterCallback(info, 0, stc_k2hq_emitters[K2HQ_EMITTER_POS_READ]);
+	return SetK2hqEmitterCallback(info, 0, stc_k2hq_emitters[K2HQ_EMITTER_POS_READ]);
 }
 
 /**
@@ -280,9 +325,9 @@ NAN_METHOD(K2hQueue::OnRead)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hQueue::OnRemove)
+Napi::Value K2hQueue::OnRemove(const Napi::CallbackInfo& info)
 {
-	SetK2hqEmitterCallback(info, 0, stc_k2hq_emitters[K2HQ_EMITTER_POS_REMOVE]);
+	return SetK2hqEmitterCallback(info, 0, stc_k2hq_emitters[K2HQ_EMITTER_POS_REMOVE]);
 }
 
 /**
@@ -298,25 +343,27 @@ NAN_METHOD(K2hQueue::OnRemove)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hQueue::Off)
+Napi::Value K2hQueue::Off(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("No handle emitter name is specified.");
-		return;
+		Napi::TypeError::New(env, "No handle emitter name is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
 	// check emitter name
-	Nan::Utf8String	emitter(info[0]);
-	const char*		pemitter;
-	if(NULL == (pemitter = GetNormalizationEmitter(*emitter, stc_k2hq_emitters))){
-		string	msg = "Unknown ";
-		msg			+= *emitter;
-		msg			+= " emitter";
-		Nan::ThrowSyntaxError(msg.c_str());
-		return;
+	std::string	emitter  = info[0].ToString().Utf8Value();
+	const char*	pemitter = GetNormalizationEmitter(emitter.c_str(), stc_k2hq_emitters);
+	if (nullptr == pemitter) {
+		std::string msg	= "Unknown ";
+		msg				+= emitter;
+		msg				+= " emitter";
+		Napi::TypeError::New(env, msg).ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 	// unset callback
-	UnsetK2hqEmitterCallback(info, pemitter);
+	return UnsetK2hqEmitterCallback(info, pemitter);
 }
 
 /**
@@ -329,9 +376,9 @@ NAN_METHOD(K2hQueue::Off)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hQueue::OffPush)
+Napi::Value K2hQueue::OffPush(const Napi::CallbackInfo& info)
 {
-	UnsetK2hqEmitterCallback(info, stc_k2hq_emitters[K2HQ_EMITTER_POS_PUSH]);
+	return UnsetK2hqEmitterCallback(info, stc_k2hq_emitters[K2HQ_EMITTER_POS_PUSH]);
 }
 
 /**
@@ -344,9 +391,9 @@ NAN_METHOD(K2hQueue::OffPush)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hQueue::OffPop)
+Napi::Value K2hQueue::OffPop(const Napi::CallbackInfo& info)
 {
-	UnsetK2hqEmitterCallback(info, stc_k2hq_emitters[K2HQ_EMITTER_POS_POP]);
+	return UnsetK2hqEmitterCallback(info, stc_k2hq_emitters[K2HQ_EMITTER_POS_POP]);
 }
 
 /**
@@ -359,9 +406,9 @@ NAN_METHOD(K2hQueue::OffPop)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hQueue::OffCount)
+Napi::Value K2hQueue::OffCount(const Napi::CallbackInfo& info)
 {
-	UnsetK2hqEmitterCallback(info, stc_k2hq_emitters[K2HQ_EMITTER_POS_COUNT]);
+	return UnsetK2hqEmitterCallback(info, stc_k2hq_emitters[K2HQ_EMITTER_POS_COUNT]);
 }
 
 /**
@@ -374,9 +421,9 @@ NAN_METHOD(K2hQueue::OffCount)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hQueue::OffRead)
+Napi::Value K2hQueue::OffRead(const Napi::CallbackInfo& info)
 {
-	UnsetK2hqEmitterCallback(info, stc_k2hq_emitters[K2HQ_EMITTER_POS_READ]);
+	return UnsetK2hqEmitterCallback(info, stc_k2hq_emitters[K2HQ_EMITTER_POS_READ]);
 }
 
 /**
@@ -389,9 +436,9 @@ NAN_METHOD(K2hQueue::OffRead)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hQueue::OffRemove)
+Napi::Value K2hQueue::OffRemove(const Napi::CallbackInfo& info)
 {
-	UnsetK2hqEmitterCallback(info, stc_k2hq_emitters[K2HQ_EMITTER_POS_REMOVE]);
+	return UnsetK2hqEmitterCallback(info, stc_k2hq_emitters[K2HQ_EMITTER_POS_REMOVE]);
 }
 
 /**
@@ -412,25 +459,39 @@ NAN_METHOD(K2hQueue::OffRemove)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hQueue::Init)
+Napi::Value K2hQueue::Initialize(const Napi::CallbackInfo& info)
 {
-	K2hQueue*	obj		= Nan::ObjectWrap::Unwrap<K2hQueue>(info.This());
+	Napi::Env env = info.Env();
 
+	// check
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("No k2hash object is specified.");
-		return;
-	}
-	K2hNode*	objNode	= ObjectWrap::Unwrap<K2hNode>(info[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked());
-	bool		is_fifo	= (info.Length() < 2 ? true : Nan::To<bool>(info[1]).ToChecked());
-	std::string	prefix;
-	if(3 <= info.Length()){
-		Nan::Utf8String	buf(info[2]);
-		prefix = std::string(*buf);
+		Napi::TypeError::New(env, "No k2hash object is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	info.GetReturnValue().Set(Nan::New(
-		obj->_k2hqueue.Init(&objNode->_k2hshm, is_fifo, (prefix.empty() ? NULL : reinterpret_cast<const unsigned char*>(prefix.c_str())), (prefix.empty() ? 0UL : (prefix.length() + 1)))
-	));
+	// Unwrap
+	if(!info.This().IsObject()||!info.This().As<Napi::Object>().InstanceOf(K2hQueue::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hQueue instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hQueue* obj = Napi::ObjectWrap<K2hQueue>::Unwrap(info.This().As<Napi::Object>());
+
+	// parse positional optional args
+	if(!info[0].IsObject()||!info[0].As<Napi::Object>().InstanceOf(K2hNode::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid k2hash object").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hNode* objNode = Napi::ObjectWrap<K2hNode>::Unwrap(info[0].As<Napi::Object>());
+
+	bool		is_fifo = (info.Length() < 2 ? true : info[1].ToBoolean().Value());
+	std::string	prefix;
+	if(2 < info.Length()){
+		prefix = info[2].ToString().Utf8Value();
+	}
+
+	// Execute
+	bool res = obj->_k2hqueue.Init(&objNode->_k2hshm, is_fifo, (prefix.empty() ? NULL : reinterpret_cast<const unsigned char*>(prefix.c_str())), (prefix.empty() ? 0UL : (prefix.length() + 1)));
+	return Napi::Boolean::New(env, res);
 }
 
 /**
@@ -455,69 +516,92 @@ NAN_METHOD(K2hQueue::Init)
  *
  */
 
-NAN_METHOD(K2hQueue::Push)
+Napi::Value K2hQueue::Push(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("No data is specified.");
-		return;
+		Napi::TypeError::New(env, "No data is specified.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	K2hQueue*		obj			= Nan::ObjectWrap::Unwrap<K2hQueue>(info.This());
-	std::string		data;
-	bool			is_pass_set	= false;
-	std::string		pass;
-	time_t			expire		= 0;
-	Nan::Callback*	callback	= obj->_cbs.Find(stc_k2hq_emitters[K2HQ_EMITTER_POS_PUSH]);
+	// Unwrap
+	if(!info.This().IsObject()||!info.This().As<Napi::Object>().InstanceOf(K2hQueue::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hQueue instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hQueue* obj = Napi::ObjectWrap<K2hQueue>::Unwrap(info.This().As<Napi::Object>());
 
-	if(info[0]->IsNull()){
-		Nan::ThrowSyntaxError("data is empty.");
-		return;
+	std::string	data;
+	bool		is_pass_set	= false;
+	std::string	pass;
+	time_t		expire		= 0;
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2hq_emitters[K2HQ_EMITTER_POS_PUSH]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
+	}
+
+	// parse positional optional args
+	if(info[0].IsNull()){
+		Napi::TypeError::New(env, "data is empty.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}else{
-		Nan::Utf8String	buf(info[0]);
-		data					= std::string(*buf);
+		data = info[0].ToString().Utf8Value();
 	}
+
 	if(1 < info.Length()){
-		if(info[1]->IsFunction()){
+		if(info[1].IsFunction()){
 			if(2 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
 			}
-			callback			= new Nan::Callback(info[1].As<v8::Function>());
-		}else if(!info[1]->IsNull()){
-			Nan::Utf8String	buf(info[1]);
-			pass				= std::string(*buf);
-			is_pass_set			= true;
+			maybeCallback	= info[1].As<Napi::Function>();
+			hasCallback		= true;
+		}else if(!info[1].IsNull()){
+			pass			= info[1].ToString().Utf8Value();
+			is_pass_set		= true;
 		}
-	}
-	if(2 < info.Length()){
-		if(info[2]->IsFunction()){
-			if(3 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback			= new Nan::Callback(info[2].As<v8::Function>());
-		}else if(info[2]->IsInt32()){
-			int	nexpire			= Nan::To<int32_t>(info[2]).ToChecked();
-			expire				= static_cast<time_t>(nexpire);
-		}else{
-			Nan::ThrowSyntaxError("Expire parameter must be int32 value.");
-			return;
-		}
-	}
-	if(3 < info.Length()){
-		if(4 < info.Length() || !info[3]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
-		}
-		callback				= new Nan::Callback(info[3].As<v8::Function>());
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new K2hqPushWorker(callback, &(obj->_k2hqueue), data.c_str(), (is_pass_set ? pass.c_str() : NULL), (expire <= 0 ? NULL : &expire)));
-		info.GetReturnValue().Set(Nan::True());
+	if(2 < info.Length()){
+		if(info[2].IsFunction()){
+			if(3 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[2].As<Napi::Function>();
+			hasCallback		= true;
+		}else if(info[2].IsNumber()){
+			int	nexpire		= info[2].ToNumber().Int32Value();
+			expire			= static_cast<time_t>(nexpire);
+		}else{
+			Napi::TypeError::New(env, "Expire parameter must be int32 value.").ThrowAsJavaScriptException();
+			return env.Undefined();
+		}
+	}
+
+	if(3 < info.Length()){
+		if(4 < info.Length() || !info[3].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
+		}
+		maybeCallback	= info[3].As<Napi::Function>();
+		hasCallback		= true;
+	}
+
+	// Execute
+	if(hasCallback){
+		K2hqPushAsyncWorker* worker = new K2hqPushAsyncWorker(maybeCallback, &(obj->_k2hqueue), data.c_str(), (is_pass_set ? pass.c_str() : NULL), (expire <= 0 ? NULL : &expire));
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
-		info.GetReturnValue().Set(Nan::New(obj->_k2hqueue.Push(reinterpret_cast<const unsigned char*>(data.c_str()), (data.length() + 1), NULL, (is_pass_set ? pass.c_str() : NULL), (expire <= 0 ? NULL : &expire))));
+		bool res = obj->_k2hqueue.Push(reinterpret_cast<const unsigned char*>(data.c_str()), (data.length() + 1), NULL, (is_pass_set ? pass.c_str() : NULL), (expire <= 0 ? NULL : &expire));
+		return Napi::Boolean::New(env, res);
 	}
 }
 
@@ -541,26 +625,44 @@ NAN_METHOD(K2hQueue::Push)
  *
  */
 
-NAN_METHOD(K2hQueue::Count)
+Napi::Value K2hQueue::Count(const Napi::CallbackInfo& info)
 {
-	K2hQueue*		obj		= Nan::ObjectWrap::Unwrap<K2hQueue>(info.This());
-	Nan::Callback*	callback= obj->_cbs.Find(stc_k2hq_emitters[K2HQ_EMITTER_POS_COUNT]);
+	Napi::Env env = info.Env();
 
-	if(0 < info.Length()){
-		if(1 < info.Length() || !info[0]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
-		}
-		callback			= new Nan::Callback(info[0].As<v8::Function>());
+	// Unwrap
+	if(!info.This().IsObject()||!info.This().As<Napi::Object>().InstanceOf(K2hQueue::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hQueue instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hQueue* obj = Napi::ObjectWrap<K2hQueue>::Unwrap(info.This().As<Napi::Object>());
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2hq_emitters[K2HQ_EMITTER_POS_COUNT]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new K2hqCountWorker(callback, &(obj->_k2hqueue)));
-		info.GetReturnValue().Set(Nan::True());
+	// parse positional optional args
+	if(0 < info.Length()){
+		if(1 < info.Length() || !info[0].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
+		}
+		maybeCallback	= info[0].As<Napi::Function>();
+		hasCallback		= true;
+	}
+
+	// Execute
+	if(hasCallback){
+		K2hqCountAsyncWorker* worker = new K2hqCountAsyncWorker(maybeCallback, &(obj->_k2hqueue));
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
-		//SetK2hDbgMode(K2HDBG_MSG);
-		info.GetReturnValue().Set(Nan::New(obj->_k2hqueue.GetCount()));
+		uint64_t cnt = obj->_k2hqueue.GetCount();
+		return Napi::Number::New(env, static_cast<double>(cnt));
 	}
 }
 
@@ -572,15 +674,20 @@ NAN_METHOD(K2hQueue::Count)
  * @return returns true if the queue is empty. false for not empty.
  */
 
-NAN_METHOD(K2hQueue::IsEmpty)
+Napi::Value K2hQueue::IsEmpty(const Napi::CallbackInfo& info)
 {
-	K2hQueue*	obj		= Nan::ObjectWrap::Unwrap<K2hQueue>(info.This());
+	Napi::Env env = info.Env();
 
-	//SetK2hDbgMode(K2HDBG_MSG);
+	// Unwrap
+	if(!info.This().IsObject()||!info.This().As<Napi::Object>().InstanceOf(K2hQueue::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hQueue instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hQueue* obj = Napi::ObjectWrap<K2hQueue>::Unwrap(info.This().As<Napi::Object>());
 
-	info.GetReturnValue().Set(Nan::New(
-		obj->_k2hqueue.IsEmpty()
-	));
+	// Execute
+	bool res = obj->_k2hqueue.IsEmpty();
+	return Napi::Boolean::New(env, res);
 }
 
 /**
@@ -611,70 +718,93 @@ NAN_METHOD(K2hQueue::IsEmpty)
  *
  */
 
-NAN_METHOD(K2hQueue::Read)
+Napi::Value K2hQueue::Read(const Napi::CallbackInfo& info)
 {
-	K2hQueue*		obj			= Nan::ObjectWrap::Unwrap<K2hQueue>(info.This());
-	int				pos			= 0;
-	bool			is_pass_set	= false;
-	string			strpass;
-	Nan::Callback*	callback	= obj->_cbs.Find(stc_k2hq_emitters[K2HQ_EMITTER_POS_READ]);
+	Napi::Env env = info.Env();
 
+	// Unwrap
+	if(!info.This().IsObject()||!info.This().As<Napi::Object>().InstanceOf(K2hQueue::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hQueue instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hQueue* obj = Napi::ObjectWrap<K2hQueue>::Unwrap(info.This().As<Napi::Object>());
+
+	int			pos			= 0;
+	bool		is_pass_set	= false;
+	std::string	strpass;
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2hq_emitters[K2HQ_EMITTER_POS_READ]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
+	}
+
+	// parse positional optional args
 	if(0 < info.Length()){
-		if(info[0]->IsNumber()){
-			pos					= Nan::To<int>(info[0]).ToChecked();
-		}else if(info[0]->IsString()){
-			Nan::Utf8String	buf(info[0]);
-			strpass				= std::string(*buf);
-			is_pass_set			= true;
-		}else if(info[0]->IsFunction()){
+		if(info[0].IsNumber()){
+			pos = info[0].ToNumber().Int32Value();
+		}else if(info[0].IsString()){
+			strpass		= info[0].ToString().Utf8Value();
+			is_pass_set	= true;
+		}else if(info[0].IsFunction()){
 			if(1 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
 			}
-			callback			= new Nan::Callback(info[0].As<v8::Function>());
+			maybeCallback	= info[0].As<Napi::Function>();
+			hasCallback		= true;
 		}else{
-			Nan::ThrowSyntaxError("Unknown first parameter.");
-			return;
+			Napi::TypeError::New(env, "Unknown first parameter.").ThrowAsJavaScriptException();
+			return env.Undefined();
 		}
-	}
-	if(1 < info.Length()){
-		if(info[1]->IsString() && !is_pass_set){
-			Nan::Utf8String	buf(info[1]);
-			strpass				= std::string(*buf);
-			is_pass_set			= true;
-		}else if(info[1]->IsFunction()){
-			if(2 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback			= new Nan::Callback(info[1].As<v8::Function>());
-		}else{
-			Nan::ThrowSyntaxError("Unknown second parameter.");
-			return;
-		}
-	}
-	if(2 < info.Length()){
-		if(3 < info.Length() || !info[2]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
-		}
-		callback				= new Nan::Callback(info[2].As<v8::Function>());
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new K2hqReadWorker(callback, &(obj->_k2hqueue), pos, (is_pass_set ? strpass.c_str() : NULL)));
-		info.GetReturnValue().Set(Nan::True());
+	if(1 < info.Length()){
+		if(info[1].IsString() && !is_pass_set){
+			strpass		= info[1].ToString().Utf8Value();
+			is_pass_set	= true;
+		}else if(info[1].IsFunction()){
+			if(2 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[1].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			Napi::TypeError::New(env, "Unknown second parameter.").ThrowAsJavaScriptException();
+			return env.Undefined();
+		}
+	}
+
+	if(2 < info.Length()){
+		if(3 < info.Length() || !info[2].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
+		}
+		maybeCallback	= info[2].As<Napi::Function>();
+		hasCallback		= true;
+	}
+
+	// Execute
+	if(hasCallback){
+		K2hqReadAsyncWorker* worker = new K2hqReadAsyncWorker(maybeCallback, &(obj->_k2hqueue), pos, (is_pass_set ? strpass.c_str() : NULL));
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
 		unsigned char*	pdata	= NULL;
 		size_t			datalen	= 0;
 		bool			result	= obj->_k2hqueue.Read(&pdata, datalen, pos, (is_pass_set ? strpass.c_str() : NULL));
 		if(!result || !pdata || 0 == datalen){
-			info.GetReturnValue().Set(Nan::Null());
+			K2H_Free(pdata);
+			return env.Null();
 		}else{
-			info.GetReturnValue().Set(Nan::New<String>(reinterpret_cast<const char*>(pdata)).ToLocalChecked());
+			Napi::String ret = Napi::String::New(env, reinterpret_cast<const char*>(pdata), static_cast<size_t>(strlen(reinterpret_cast<const char*>(pdata))));
+			K2H_Free(pdata);
+			return ret;
 		}
-		K2H_Free(pdata);
 	}
 }
 
@@ -699,51 +829,73 @@ NAN_METHOD(K2hQueue::Read)
  *
  */
 
-NAN_METHOD(K2hQueue::Pop)
+Napi::Value K2hQueue::Pop(const Napi::CallbackInfo& info)
 {
-	K2hQueue*		obj			= Nan::ObjectWrap::Unwrap<K2hQueue>(info.This());
-	bool			is_pass_set	= false;
-	string			strpass;
-	Nan::Callback*	callback	= obj->_cbs.Find(stc_k2hq_emitters[K2HQ_EMITTER_POS_POP]);
+	Napi::Env env = info.Env();
 
+	// Unwrap
+	if(!info.This().IsObject()||!info.This().As<Napi::Object>().InstanceOf(K2hQueue::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hQueue instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hQueue* obj = Napi::ObjectWrap<K2hQueue>::Unwrap(info.This().As<Napi::Object>());
+
+	bool		is_pass_set = false;
+	std::string	strpass;
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2hq_emitters[K2HQ_EMITTER_POS_POP]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
+	}
+
+	// parse positional optional args
 	if(0 < info.Length()){
-		if(info[0]->IsString()){
-			Nan::Utf8String	buf(info[0]);
-			strpass				= std::string(*buf);
-			is_pass_set			= true;
-		}else if(info[0]->IsFunction()){
+		if(info[0].IsString()){
+			strpass		= info[0].ToString().Utf8Value();
+			is_pass_set	= true;
+		}else if(info[0].IsFunction()){
 			if(1 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
 			}
-			callback			= new Nan::Callback(info[0].As<v8::Function>());
+			maybeCallback	= info[0].As<Napi::Function>();
+			hasCallback		= true;
 		}else{
-			Nan::ThrowSyntaxError("Unknown first parameter.");
-			return;
+			Napi::TypeError::New(env, "Unknown first parameter.").ThrowAsJavaScriptException();
+			return env.Undefined();
 		}
-	}
-	if(1 < info.Length()){
-		if(2 < info.Length() || !info[1]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
-		}
-		callback				= new Nan::Callback(info[1].As<v8::Function>());
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new K2hqPopWorker(callback, &(obj->_k2hqueue), (is_pass_set ? strpass.c_str() : NULL)));
-		info.GetReturnValue().Set(Nan::True());
+	if(1 < info.Length()){
+		if(2 < info.Length() || !info[1].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
+		}
+		maybeCallback	= info[1].As<Napi::Function>();
+		hasCallback		= true;
+	}
+
+	// Execute
+	if(hasCallback){
+		K2hqPopAsyncWorker* worker = new K2hqPopAsyncWorker(maybeCallback, &(obj->_k2hqueue), (is_pass_set ? strpass.c_str() : NULL));
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
 		unsigned char*	pdata	= NULL;
 		size_t			datalen	= 0;
 		bool			result	= obj->_k2hqueue.Pop(&pdata, datalen, NULL, (is_pass_set ? strpass.c_str() : NULL));
 		if(!result || !pdata || 0 == datalen){
-			info.GetReturnValue().Set(Nan::Null());
+			K2H_Free(pdata);
+			return env.Null();
 		}else{
-			info.GetReturnValue().Set(Nan::New<String>(reinterpret_cast<const char*>(pdata)).ToLocalChecked());
+			Napi::String ret = Napi::String::New(env, reinterpret_cast<const char*>(pdata), static_cast<size_t>(strlen(reinterpret_cast<const char*>(pdata))));
+			K2H_Free(pdata);
+			return ret;
 		}
-		K2H_Free(pdata);
 	}
 }
 
@@ -770,59 +922,81 @@ NAN_METHOD(K2hQueue::Pop)
  *
  */
 
-NAN_METHOD(K2hQueue::Remove)
+Napi::Value K2hQueue::Remove(const Napi::CallbackInfo& info)
 {
+	Napi::Env env = info.Env();
+
 	if(info.Length() < 1){
-		Nan::ThrowSyntaxError("Need to specify first parameter for count of queue.");
-		return;
+		Napi::TypeError::New(env, "Need to specify first parameter for count of queue.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	K2hQueue*		obj			= Nan::ObjectWrap::Unwrap<K2hQueue>(info.This());
-	int				count		= 0;
-	bool			is_pass_set	= false;
-	string			strpass;
-	Nan::Callback*	callback	= obj->_cbs.Find(stc_k2hq_emitters[K2HQ_EMITTER_POS_REMOVE]);
+	// Unwrap
+	if(!info.This().IsObject()||!info.This().As<Napi::Object>().InstanceOf(K2hQueue::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hQueue instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hQueue* obj = Napi::ObjectWrap<K2hQueue>::Unwrap(info.This().As<Napi::Object>());
 
-	if(!info[0]->IsNumber()){
-		Nan::ThrowSyntaxError("First parameter must be number.");
-		return;
+	int			count		= 0;
+	bool		is_pass_set	= false;
+	std::string	strpass;
+
+	// initial callback comes from emitter map if set
+	Napi::Function				maybeCallback;
+	bool						hasCallback		= false;
+	Napi::FunctionReference*	emitterCbRef	= obj->_cbs.Find(stc_k2hq_emitters[K2HQ_EMITTER_POS_REMOVE]);
+	if(emitterCbRef){
+		maybeCallback	= emitterCbRef->Value();
+		hasCallback		= true;
+	}
+
+	// parse positional optional args
+	if(!info[0].IsNumber()){
+		Napi::TypeError::New(env, "First parameter must be number.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}else{
-		count				= Nan::To<int>(info[0]).ToChecked();
+		count = info[0].ToNumber().Int32Value();
 		if(count <= 0){
-			Nan::ThrowSyntaxError("Remove queue count must be over 0.");
-			return;
+			Napi::TypeError::New(env, "Remove queue count must be over 0.").ThrowAsJavaScriptException();
+			return env.Undefined();
 		}
-	}
-	if(1 < info.Length()){
-		if(info[1]->IsString()){
-			Nan::Utf8String	buf(info[1]);
-			strpass				= std::string(*buf);
-			is_pass_set			= true;
-		}else if(info[1]->IsFunction()){
-			if(2 < info.Length()){
-				Nan::ThrowSyntaxError("Last parameter is not callback function.");
-				return;
-			}
-			callback			= new Nan::Callback(info[1].As<v8::Function>());
-		}else{
-			Nan::ThrowSyntaxError("Unknown second parameter.");
-			return;
-		}
-	}
-	if(2 < info.Length()){
-		if(3 < info.Length() || !info[2]->IsFunction()){
-			Nan::ThrowSyntaxError("Last parameter is not callback function.");
-			return;
-		}
-		callback				= new Nan::Callback(info[2].As<v8::Function>());
 	}
 
-	// work
-	if(callback){
-		Nan::AsyncQueueWorker(new K2hqRemoveWorker(callback, &(obj->_k2hqueue), count, (is_pass_set ? strpass.c_str() : NULL)));
-		info.GetReturnValue().Set(Nan::True());
+	if(1 < info.Length()){
+		if(info[1].IsString()){
+			strpass		= info[1].ToString().Utf8Value();
+			is_pass_set	= true;
+		}else if(info[1].IsFunction()){
+			if(2 < info.Length()){
+				Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+				return env.Undefined();
+			}
+			maybeCallback	= info[1].As<Napi::Function>();
+			hasCallback		= true;
+		}else{
+			Napi::TypeError::New(env, "Unknown second parameter.").ThrowAsJavaScriptException();
+			return env.Undefined();
+		}
+	}
+
+	if(2 < info.Length()){
+		if(3 < info.Length() || !info[2].IsFunction()){
+			Napi::TypeError::New(env, "Last parameter is not callback function.").ThrowAsJavaScriptException();
+			return env.Undefined();
+		}
+		maybeCallback	= info[2].As<Napi::Function>();
+		hasCallback		= true;
+	}
+
+	// Execute
+	if(hasCallback){
+		K2hqRemoveAsyncWorker* worker = new K2hqRemoveAsyncWorker(maybeCallback, &(obj->_k2hqueue), count, (is_pass_set ? strpass.c_str() : NULL));
+		worker->Queue();
+		return Napi::Boolean::New(env, true);
 	}else{
-		info.GetReturnValue().Set(Nan::New(obj->_k2hqueue.Remove(count, NULL, NULL, (is_pass_set ? strpass.c_str() : NULL))));
+		int	res = obj->_k2hqueue.Remove(count, NULL, NULL, (is_pass_set ? strpass.c_str() : NULL));
+		return Napi::Number::New(env, static_cast<double>(res));
 	}
 }
 
@@ -839,25 +1013,30 @@ NAN_METHOD(K2hQueue::Remove)
  * @return return true for success, false for failure
  */
 
-NAN_METHOD(K2hQueue::Dump)
+Napi::Value K2hQueue::Dump(const Napi::CallbackInfo& info)
 {
-	K2hQueue*	obj	= Nan::ObjectWrap::Unwrap<K2hQueue>(info.This());
+	Napi::Env env = info.Env();
 
-	int			fd	= (0 < info.Length() && info[0]->IsInt32()) ? Nan::To<int32_t>(info[0]).ToChecked() : -1;
-	FILE*		fp	= (-1 == fd ? stdout : fdopen(fd, "a"));
+	// Unwrap
+	if(!info.This().IsObject()||!info.This().As<Napi::Object>().InstanceOf(K2hQueue::constructor.Value())){
+		Napi::TypeError::New(env, "Invalid this object(K2hQueue instance)").ThrowAsJavaScriptException();
+		return env.Undefined();
+	}
+	K2hQueue* obj = Napi::ObjectWrap<K2hQueue>::Unwrap(info.This().As<Napi::Object>());
+
+	int		fd = (0 < info.Length() && info[0].IsNumber()) ? info[0].ToNumber().Int32Value() : -1;
+	FILE*	fp = (-1 == fd ? stdout : fdopen(fd, "a"));
 	if(!fp){
-		Nan::ThrowError("could not open output stream.");
-		return;
+		Napi::Error::New(env, "could not open output stream.").ThrowAsJavaScriptException();
+		return env.Undefined();
 	}
 
-	info.GetReturnValue().Set(Nan::New(
-		obj->_k2hqueue.Dump(fp)
-	));
+	obj->_k2hqueue.Dump(fp);
 
 	// Need to flush stream here!
 	fflush(fp);
 
-	info.GetReturnValue().Set(Nan::True());
+	return Napi::Boolean::New(env, true);
 }
 
 //@}

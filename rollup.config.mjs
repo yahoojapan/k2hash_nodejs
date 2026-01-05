@@ -14,25 +14,39 @@
  * the license file that was distributed with this source code.
  *
  * AUTHOR:   Takeshi Nakatani
- * CREATE:   Tue 6 Nov 2018
+ * CREATE:   Wed 19 Nov 2025
  * REVISION:
  */
 
-'use strict';
+import resolve	from '@rollup/plugin-node-resolve';
+import commonjs	from '@rollup/plugin-commonjs';
+import terser	from '@rollup/plugin-terser';
+import replace	from '@rollup/plugin-replace';
 
-//
-// Common Chai objects for each test modules.
-//
-var chai		= require('chai');
-var k2hash		= require('k2hash');
-
-//
-// Exports
-//
-exports.chai	= chai;
-exports.k2hash	= k2hash;
-exports.assert	= chai.assert;
-exports.expect	= chai.expect;
+export default
+{
+	input:	'build/esm/index.js',
+	output: {
+		file:		'build/esm/index.mjs',
+		format:		'es',
+		sourcemap:	true
+	},
+	plugins: [
+		resolve({
+			preferBuiltins: true
+		}),
+		commonjs(),
+		replace({
+			'process.env.NODE_ENV':	JSON.stringify(process.env.NODE_ENV || 'production'),
+			preventAssignment:		true
+		}),
+		terser()
+	],
+	external: [
+		'bindings',
+		'node-addon-api'
+	]
+};
 
 /*
  * Local variables:

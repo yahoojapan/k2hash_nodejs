@@ -20,23 +20,36 @@
 
 #include "k2h_keyqueue.h"
 
-using namespace v8 ;
-
 //---------------------------------------------------------
 // k2hkeyqueue node object
 //---------------------------------------------------------
-NAN_METHOD(CreateObject)
+Napi::Value CreateObject(const Napi::CallbackInfo& info)
 {
-	K2hKeyQueue::NewInstance(info);
+	Napi::Env env = info.Env();
+
+	if(0 < info.Length()){
+		return K2hKeyQueue::NewInstance(env, info[0]);
+	}else{
+		return K2hKeyQueue::NewInstance(env);
+	}
 }
 
-void InitAll(Local<Object> exports, Local<Object> module)
+Napi::Object InitAll(Napi::Env env, Napi::Object exports)
 {
-	K2hKeyQueue::Init() ;
-	Nan::Set(module, Nan::New("exports").ToLocalChecked(), Nan::GetFunction(Nan::New<FunctionTemplate>(CreateObject)).ToLocalChecked());
+	// Register class / create constructor (store in K2hKeyQueue::constructor)
+	K2hKeyQueue::Init(env, exports);
+
+	// Create factory function to be assigned to module.exports
+	Napi::Function createFn = Napi::Function::New(env, CreateObject, "k2hkeyqueue");
+
+	// Attach constructor for compatibility (require('k2hkeyqueue').K2hKeyQueue)
+	createFn.Set("K2hKeyQueue", K2hKeyQueue::constructor.Value());
+
+	// Return factory function as module.exports
+	return createFn;
 }
 
-NODE_MODULE(k2hkeyqueue, InitAll)
+NODE_API_MODULE(k2hkeyqueue, InitAll)
 
 /*
  * Local variables:

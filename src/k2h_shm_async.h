@@ -35,63 +35,75 @@
 // Callback function:	function(string error)
 //
 //---------------------------------------------------------
-class CreateWorker : public Nan::AsyncWorker
+class CreateAsyncWorker : public Napi::AsyncWorker
 {
 	public:
-		CreateWorker(Nan::Callback* callback, K2HShm* pobj, const char* k2hfile, bool fullmapping, int mask, int cmask, int element_cnt, size_t page) :
-			Nan::AsyncWorker(callback), pk2hobj(pobj),
-			strfile(k2hfile ? k2hfile : ""), isfullmapping(fullmapping), mask_bitcnt(mask), cmask_bitcnt(cmask), max_element_cnt(element_cnt), pagesize(page)
-		{}
-		~CreateWorker() {}
-
-		void Execute()
+		CreateAsyncWorker(const Napi::Function& callback, K2HShm* k2hshm, const std::string& filename, bool isfullmapping, int mask_bitcnt, int cmask_bitcnt, int max_element_cnt, size_t pagesize) :
+			Napi::AsyncWorker(callback), _callbackRef(Napi::Persistent(callback)), _k2hshm(k2hshm),
+			_filename(filename), _isfullmapping(isfullmapping), _mask_bitcnt(mask_bitcnt), _cmask_bitcnt(cmask_bitcnt), _max_element_cnt(max_element_cnt), _pagesize(pagesize), _result(false)
 		{
-			if(!pk2hobj){
-				Nan::ReferenceError("No object is associated to async worker");
-				return;
-			}
-			if(!pk2hobj->Create(strfile.c_str(), isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize)){
-				// set error
-				this->SetErrorMessage("Failed to initialize k2hash object.");
+			_callbackRef.Ref();
+		}
+
+		~CreateAsyncWorker() override
+		{
+			if(_callbackRef){
+				_callbackRef.Unref();
+				_callbackRef.Reset();
 			}
 		}
 
-		void HandleOKCallback()
+		// Run on worker thread
+		void Execute() override
 		{
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::Null() };
-
-			if(callback){
-				callback->Call(argc, argv);
-			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
+			if(!_k2hshm){
+				SetError("No object is associated to async worker");
 				return;
+			}
+			if(!_k2hshm->Create(_filename.c_str(), _isfullmapping, _mask_bitcnt, _cmask_bitcnt, _max_element_cnt, _pagesize)){
+				SetError(std::string("Failed to create K2HASH file: ") + _filename);	// call SetError method in Napi::AsyncWorker
+				return;
+			}
+			_result = true;
+		}
+
+		// handler for success
+		void OnOK() override
+		{
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
+
+			// The first argument is null and the second argument is the result.
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ env.Null(), Napi::Boolean::New(env, _result) });
 			}
 		}
 
-        void HandleErrorCallback()
-        {
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::New<v8::String>(this->ErrorMessage()).ToLocalChecked() };
+		// handler for failure (by calling SetError)
+		void OnError(const Napi::Error& err) override
+		{
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			// The first argument is the error message.
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ err.Value() });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				// Throw error
+				err.ThrowAsJavaScriptException();
 			}
-        }
+		}
 
 	private:
-		K2HShm*		pk2hobj;
-		std::string	strfile;
-		bool		isfullmapping;
-		int			mask_bitcnt;
-		int			cmask_bitcnt;
-		int			max_element_cnt;
-		size_t		pagesize;
+		Napi::FunctionReference	_callbackRef;
+		K2HShm*					_k2hshm;
+		std::string				_filename;
+		bool					_isfullmapping;
+		int						_mask_bitcnt;
+		int						_cmask_bitcnt;
+		int						_max_element_cnt;
+		size_t					_pagesize;
+		bool					_result;
 };
 
 //---------------------------------------------------------
@@ -101,66 +113,78 @@ class CreateWorker : public Nan::AsyncWorker
 // Callback function:	function(string error)
 //
 //---------------------------------------------------------
-class OpenWorker : public Nan::AsyncWorker
+class OpenAsyncWorker : public Napi::AsyncWorker
 {
 	public:
-		OpenWorker(Nan::Callback* callback, K2HShm* pobj, const char* k2hfile, bool readonly, bool create, bool tempfilemode, bool fullmapping, int mask, int cmask, int element_cnt, size_t page) :
-			Nan::AsyncWorker(callback), pk2hobj(pobj),
-			strfile(k2hfile ? k2hfile : ""), isReadOnly(readonly), isCreate(create), isTempFile(tempfilemode), isfullmapping(fullmapping), mask_bitcnt(mask), cmask_bitcnt(cmask), max_element_cnt(element_cnt), pagesize(page)
-		{}
-		~OpenWorker() {}
-
-		void Execute()
+		OpenAsyncWorker(const Napi::Function& callback, K2HShm* k2hshm, const std::string& filename, bool isReadOnly, bool isCreate, bool isTempFile, bool isfullmapping, int mask_bitcnt, int cmask_bitcnt, int max_element_cnt, size_t pagesize) :
+			Napi::AsyncWorker(callback), _callbackRef(Napi::Persistent(callback)), _k2hshm(k2hshm),
+			_filename(filename), _isReadOnly(isReadOnly), _isCreate(isCreate), _isTempFile(isTempFile), _isfullmapping(isfullmapping), _mask_bitcnt(mask_bitcnt), _cmask_bitcnt(cmask_bitcnt), _max_element_cnt(max_element_cnt), _pagesize(pagesize), _result(false)
 		{
-			if(!pk2hobj){
-				Nan::ReferenceError("No object is associated to async worker");
-				return;
-			}
-			if(!pk2hobj->Attach(strfile.c_str(), isReadOnly, isCreate, isTempFile, isfullmapping, mask_bitcnt, cmask_bitcnt, max_element_cnt, pagesize)){
-				// set error
-				this->SetErrorMessage("Failed to attach(open) k2hash object.");
+			_callbackRef.Ref();
+		}
+
+		~OpenAsyncWorker() override
+		{
+			if(_callbackRef){
+				_callbackRef.Unref();
+				_callbackRef.Reset();
 			}
 		}
 
-		void HandleOKCallback()
+		// Run on worker thread
+		void Execute() override
 		{
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::Null() };
-
-			if(callback){
-				callback->Call(argc, argv);
-			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
+			if(!_k2hshm){
+				SetError("No object is associated to async worker");
 				return;
+			}
+			if(!_k2hshm->Attach(_filename.c_str(), _isReadOnly, _isCreate, _isTempFile, _isfullmapping, _mask_bitcnt, _cmask_bitcnt, _max_element_cnt, _pagesize)){
+				SetError(std::string("Failed to attach(open) k2hash object."));		// call SetError method in Napi::AsyncWorker
+				return;
+			}
+			_result = true;
+		}
+
+		// handler for success
+		void OnOK() override
+		{
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
+
+			// The first argument is null and the second argument is the result.
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ env.Null(), Napi::Boolean::New(env, _result) });
 			}
 		}
 
-        void HandleErrorCallback()
-        {
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::New<v8::String>(this->ErrorMessage()).ToLocalChecked() };
+		// handler for failure (by calling SetError)
+		void OnError(const Napi::Error& err) override
+		{
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			// The first argument is the error message.
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ err.Value() });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				// Throw error
+				err.ThrowAsJavaScriptException();
 			}
-        }
+		}
 
 	private:
-		K2HShm*		pk2hobj;
-		std::string	strfile;
-		bool		isReadOnly;
-		bool		isCreate;
-		bool		isTempFile;
-		bool		isfullmapping;
-		int			mask_bitcnt;
-		int			cmask_bitcnt;
-		int			max_element_cnt;
-		size_t		pagesize;
+		Napi::FunctionReference	_callbackRef;
+		K2HShm*					_k2hshm;
+		std::string				_filename;
+		bool					_isReadOnly;
+		bool					_isCreate;
+		bool					_isTempFile;
+		bool					_isfullmapping;
+		int						_mask_bitcnt;
+		int						_cmask_bitcnt;
+		int						_max_element_cnt;
+		size_t					_pagesize;
+		bool					_result;
 };
 
 //---------------------------------------------------------
@@ -170,54 +194,65 @@ class OpenWorker : public Nan::AsyncWorker
 // Callback function:	function(string error)
 //
 //---------------------------------------------------------
-class CloseWorker : public Nan::AsyncWorker
+class CloseAsyncWorker : public Napi::AsyncWorker
 {
 	public:
-		CloseWorker(Nan::Callback* callback, K2HShm* pobj) : Nan::AsyncWorker(callback), pk2hobj(pobj) {}
-		~CloseWorker() {}
-
-		void Execute()
+		CloseAsyncWorker(const Napi::Function& callback, K2HShm* k2hshm) : Napi::AsyncWorker(callback), _callbackRef(Napi::Persistent(callback)), _k2hshm(k2hshm)
 		{
-			if(!pk2hobj){
-				Nan::ReferenceError("No object is associated to async worker");
-				return;
-			}
-			if(!pk2hobj->Detach()){
-				// set error
-				this->SetErrorMessage("Failed to close k2hash object.");
+			_callbackRef.Ref();
+		}
+
+		~CloseAsyncWorker() override
+		{
+			if(_callbackRef){
+				_callbackRef.Unref();
+				_callbackRef.Reset();
 			}
 		}
 
-		void HandleOKCallback()
+		// Run on worker thread
+		void Execute() override
 		{
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::Null() };
-
-			if(callback){
-				callback->Call(argc, argv);
-			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
+			if(!_k2hshm){
+				SetError("No object is associated to async worker");
+				return;
+			}
+			if(!_k2hshm->Detach()){
+				SetError(std::string("Failed to close k2hash object."));	// call SetError method in Napi::AsyncWorker
 				return;
 			}
 		}
 
-        void HandleErrorCallback()
-        {
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::New<v8::String>(this->ErrorMessage()).ToLocalChecked() };
+		// handler for success
+		void OnOK() override
+		{
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
-			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+			// The first argument is null and the second argument is the result.
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ env.Null(), Napi::Boolean::New(env, true) });
 			}
-        }
+		}
+
+		// handler for failure (by calling SetError)
+		void OnError(const Napi::Error& err) override
+		{
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
+
+			// The first argument is the error message.
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ err.Value() });
+			}else{
+				// Throw error
+				err.ThrowAsJavaScriptException();
+			}
+		}
 
 	private:
-		K2HShm*		pk2hobj;
+		Napi::FunctionReference	_callbackRef;
+		K2HShm*					_k2hshm;
 };
 
 //---------------------------------------------------------
@@ -227,43 +262,47 @@ class CloseWorker : public Nan::AsyncWorker
 // Callback function:	function(string error[, string value])
 //
 //---------------------------------------------------------
-class GetValueWorker : public Nan::AsyncWorker
+class GetValueAsyncWorker : public Napi::AsyncWorker
 {
 	public:
-		GetValueWorker(Nan::Callback* callback, K2HShm* pobj, const char* pkey, const char* psubkey, bool attrchk, const char* ppass) :
-			Nan::AsyncWorker(callback), pk2hobj(pobj),
-			is_key_set(false), strkey(pkey ? pkey : ""), is_skey_set(false), strsubkey(psubkey ? psubkey : ""), is_attr_check(attrchk), is_pass_set(false), strpass(ppass ? ppass : ""), presult(NULL)
+		GetValueAsyncWorker(const Napi::Function& callback, K2HShm* k2hshm, const char* pkey, const char* psubkey, bool attrchk, const char* ppass) :
+			Napi::AsyncWorker(callback), _callbackRef(Napi::Persistent(callback)), _k2hshm(k2hshm),
+			_is_key_set(pkey != nullptr), _strkey(pkey ? pkey : ""), _is_skey_set(psubkey != nullptr), _strsubkey(psubkey ? psubkey : ""), _is_attr_check(attrchk), _is_pass_set(ppass != nullptr), _strpass(ppass ? ppass : ""), _presult(nullptr)
 		{
-			is_key_set	= (NULL != pkey);
-			is_skey_set	= (NULL != psubkey);
-			is_pass_set	= (NULL != ppass);
-		}
-		~GetValueWorker()
-		{
-			K2H_Free(presult);
+			_callbackRef.Ref();
 		}
 
-		void Execute()
+		~GetValueAsyncWorker() override
 		{
-			if(!pk2hobj){
-				Nan::ReferenceError("No object is associated to async worker");
+			if(_callbackRef){
+				_callbackRef.Unref();
+				_callbackRef.Reset();
+			}
+			K2H_Free(_presult);
+		}
+
+		// Run on worker thread
+		void Execute() override
+		{
+			if(!_k2hshm){
+				SetError("No object is associated to async worker");
 				return;
 			}
-			if(!is_key_set){
-				Nan::ReferenceError("Specified key is empty(null)");
+			if(!_is_key_set){
+				SetError("Specified key is empty(null)");
 				return;
 			}
 
 			// check subkey if specified
-			if(is_skey_set){
+			if(_is_skey_set){
 				// subkey is specified, thus need to check the key has it.
 				bool		found	= false;
-				K2HSubKeys*	sk		= pk2hobj->GetSubKeys(strkey.c_str());
+				K2HSubKeys*	sk		= _k2hshm->GetSubKeys(_strkey.c_str());
 				if(sk){
 					strarr_t	strarr;
 					sk->StringArray(strarr);
-					for(strarr_t::const_iterator iter = strarr.begin(); iter != strarr.end(); ++iter){
-						if(0 == strcmp(iter->c_str(), strsubkey.c_str())){
+					for(const auto &_str : strarr){
+						if(_str == _strsubkey){
 							found = true;
 							break;
 						}
@@ -271,60 +310,74 @@ class GetValueWorker : public Nan::AsyncWorker
 					delete sk;
 				}
 				if(!found){
-					// set error
-					this->SetErrorMessage("There is no specified subkey in key subkey list.");
+					SetError("There is no specified subkey in key subkey list.");
 					return;
 				}
-				strkey = strsubkey;
+				_strkey = _strsubkey;
 			}
 
 			// get value
-			presult = pk2hobj->Get(strkey.c_str(), is_attr_check, (is_pass_set ? strpass.c_str() : NULL));
-			if(!presult){
-				// set error
-				this->SetErrorMessage("Failed to get value from key/subkey or the value is empty(null).");
+			_presult = _k2hshm->Get(_strkey.c_str(), _is_attr_check, (_is_pass_set ? _strpass.c_str() : NULL));
+			if(!_presult){
+				SetError("Failed to get value from key/subkey or the value is empty(null).");
 				return;
 			}
 		}
 
-		void HandleOKCallback()
+		// handler for success
+		void OnOK() override
 		{
-			Nan::HandleScope		scope;
-			const int				argc		= 2;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::Null(), Nan::New<v8::String>(presult).ToLocalChecked() };
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			// The first argument is null and the second argument is the result.
+			if(!_callbackRef.IsEmpty()){
+				Napi::String	jsValue = Napi::String::New(env, (_presult ? _presult : ""), (_presult ? static_cast<size_t>(strlen(_presult)) : 0));
+				_callbackRef.Value().Call({ env.Null(), jsValue });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				Napi::TypeError::New(env, "Internal error in async worker").ThrowAsJavaScriptException();
 			}
 		}
 
-        void HandleErrorCallback()
-        {
-			Nan::HandleScope		scope;
-			const int				argc		= 2;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::New<v8::String>(this->ErrorMessage()).ToLocalChecked(), Nan::Null() };
+		// handler for failure (by calling SetError)
+		void OnError(const Napi::Error& err) override
+		{
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			std::string	msg;
+			if(err.Value().IsObject()){
+				Napi::Object	obj		= err.Value().As<Napi::Object>();
+				Napi::Value		msgval	= obj.Get("message");
+				if(msgval.IsString()){
+					msg = msgval.As<Napi::String>().Utf8Value();
+				}else{
+					Napi::String	_str = obj.ToString();
+					msg = _str.Utf8Value();
+				}
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				msg = "Unknown error";
 			}
-        }
+
+			// The first argument is the error message.
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ Napi::String::New(env, msg), env.Null() });
+			}else{
+				err.ThrowAsJavaScriptException();
+			}
+		}
 
 	private:
-		K2HShm*		pk2hobj;
-		bool		is_key_set;
-		std::string	strkey;
-		bool		is_skey_set;
-		std::string	strsubkey;
-		bool		is_attr_check;
-		bool		is_pass_set;
-		std::string	strpass;
-		char*		presult;
+		Napi::FunctionReference	_callbackRef;
+		K2HShm*					_k2hshm;
+		bool					_is_key_set;
+		std::string				_strkey;
+		bool					_is_skey_set;
+		std::string				_strsubkey;
+		bool					_is_attr_check;
+		bool					_is_pass_set;
+		std::string				_strpass;
+		char*					_presult;
 };
 
 //---------------------------------------------------------
@@ -334,82 +387,101 @@ class GetValueWorker : public Nan::AsyncWorker
 // Callback function:	function(string error, array subkeys)
 //
 //---------------------------------------------------------
-class GetSubkeysWorker : public Nan::AsyncWorker
+class GetSubkeysAsyncWorker : public Napi::AsyncWorker
 {
 	public:
-		GetSubkeysWorker(Nan::Callback* callback, K2HShm* pobj, const char* pkey) : Nan::AsyncWorker(callback), pk2hobj(pobj), is_key_set(false), strkey(pkey ? pkey : "")
+		GetSubkeysAsyncWorker(const Napi::Function& callback, K2HShm* pobj, const char* pkey) :
+			Napi::AsyncWorker(callback), _callbackRef(Napi::Persistent(callback)), _k2hshm(pobj), _is_key_set(pkey != nullptr), _strkey(pkey ? pkey : ""), _subkey_array()
 		{
-			is_key_set	= (NULL != pkey);
+			_callbackRef.Ref();
 		}
-		~GetSubkeysWorker() {}
 
-		void Execute()
+		~GetSubkeysAsyncWorker() override
 		{
-			if(!pk2hobj){
-				Nan::ReferenceError("No object is associated to async worker");
+			if(_callbackRef){
+				_callbackRef.Unref();
+				_callbackRef.Reset();
+			}
+		}
+
+		// Run on worker thread
+		void Execute() override
+		{
+			if(!_k2hshm){
+				SetError("No object is associated to async worker");
 				return;
 			}
-			if(!is_key_set){
-				Nan::ReferenceError("Specified key is empty(null)");
+			if(!_is_key_set){
+				SetError("Specified key is empty(null)");
 				return;
 			}
 
-			// get subkey
-			K2HSubKeys*	sk = pk2hobj->GetSubKeys(strkey.c_str());
+			// get subkeys
+			K2HSubKeys*	sk = _k2hshm->GetSubKeys(_strkey.c_str());
 			if(sk){
-				subkey_array.clear();
-				sk->StringArray(subkey_array);
-				delete sk;
-				if(0 == subkey_array.size()){
-					// set error
-					this->SetErrorMessage("Failed to get subkey because the key does not have any subkey.");
+				_subkey_array.clear();
+				sk->StringArray(_subkey_array);
+				delete	sk;
+				if(0 == _subkey_array.size()){
+					SetError("Failed to get subkey because the key does not have any subkey.");
 					return;
 				}
 			}else{
-				// set error
-				this->SetErrorMessage("Failed to get subkey from key or key does not have any subkey.");
+				SetError("Failed to get subkey from key or key does not have any subkey.");
 				return;
 			}
 		}
 
-		void HandleOKCallback()
+		// handler for success
+		void OnOK() override
 		{
-			Nan::HandleScope		scope;
-			v8::Local<v8::Array>	retarr		= Nan::New<v8::Array>();
-			int						pos			= 0 ;
-			for(strarr_t::const_iterator iter = subkey_array.begin(); iter != subkey_array.end(); ++iter, ++pos){
-				Nan::Set(retarr, pos, Nan::New<v8::String>(iter->c_str()).ToLocalChecked());
-			}
-			const int				argc		= 2;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::Null(), retarr };
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			if(!_callbackRef.IsEmpty()){
+				Napi::Array	retarr	= Napi::Array::New(env, _subkey_array.size());
+				uint32_t	idx		= 0;
+				for(const auto &_str : _subkey_array){
+					retarr.Set(idx++, Napi::String::New(env, _str.c_str(), static_cast<size_t>(strlen(_str.c_str()))));
+				}
+				_callbackRef.Value().Call({ env.Null(), retarr });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				Napi::TypeError::New(env, "Internal error in async worker").ThrowAsJavaScriptException();
 			}
 		}
 
-        void HandleErrorCallback()
-        {
-			Nan::HandleScope		scope;
-			const int				argc		= 2;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::New<v8::String>(this->ErrorMessage()).ToLocalChecked(), Nan::Null() };
+		// handler for failure (by calling SetError)
+		void OnError(const Napi::Error& err) override
+		{
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			std::string msg;
+			if(err.Value().IsObject()){
+				Napi::Object	obj	= err.Value().As<Napi::Object>();
+				Napi::Value		mv	= obj.Get("message");
+				if(mv.IsString()){
+					msg = mv.As<Napi::String>().Utf8Value();
+				}else{
+					msg = err.Message();
+				}
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				msg = err.Message();
 			}
-        }
+
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ Napi::String::New(env, msg), env.Null() });
+			}else{
+				err.ThrowAsJavaScriptException();
+			}
+		}
 
 	private:
-		K2HShm*		pk2hobj;
-		bool		is_key_set;
-		std::string	strkey;
-		strarr_t	subkey_array;
+		Napi::FunctionReference	_callbackRef;
+		K2HShm*					_k2hshm;
+		bool					_is_key_set;
+		std::string				_strkey;
+		strarr_t				_subkey_array;
 };
 
 //---------------------------------------------------------
@@ -419,82 +491,101 @@ class GetSubkeysWorker : public Nan::AsyncWorker
 // Callback function:	function(string error, array attrs)
 //
 //---------------------------------------------------------
-class GetAttrsWorker : public Nan::AsyncWorker
+class GetAttrsAsyncWorker : public Napi::AsyncWorker
 {
 	public:
-		GetAttrsWorker(Nan::Callback* callback, K2HShm* pobj, const char* pkey) : Nan::AsyncWorker(callback), pk2hobj(pobj), is_key_set(false), strkey(pkey ? pkey : "")
+		GetAttrsAsyncWorker(const Napi::Function& callback, K2HShm* pobj, const char* pkey) :
+			Napi::AsyncWorker(callback), _callbackRef(Napi::Persistent(callback)), _k2hshm(pobj), _is_key_set(pkey != nullptr), _strkey(pkey ? pkey : ""), _attrs_array()
 		{
-			is_key_set	= (NULL != pkey);
+			_callbackRef.Ref();
 		}
-		~GetAttrsWorker() {}
 
-		void Execute()
+		~GetAttrsAsyncWorker() override
 		{
-			if(!pk2hobj){
-				Nan::ReferenceError("No object is associated to async worker");
+			if(_callbackRef){
+				_callbackRef.Unref();
+				_callbackRef.Reset();
+			}
+		}
+
+		// Run on worker thread
+		void Execute() override
+		{
+			if(!_k2hshm){
+				SetError("No object is associated to async worker");
 				return;
 			}
-			if(!is_key_set){
-				Nan::ReferenceError("Specified key is empty(null)");
+			if(!_is_key_set){
+				SetError("Specified key is empty(null)");
 				return;
 			}
 
 			// get attributes
-			K2HAttrs*	attrs = pk2hobj->GetAttrs(strkey.c_str());
+			K2HAttrs*	attrs = _k2hshm->GetAttrs(_strkey.c_str());
 			if(attrs){
-				attrs_array.clear();
-				attrs->KeyStringArray(attrs_array);
+				_attrs_array.clear();
+				attrs->KeyStringArray(_attrs_array);
 				delete attrs;
-				if(0 == attrs_array.size()){
-					// set error
-					this->SetErrorMessage("Failed to get attributes because the key does not have any attribute.");
+				if(0 == _attrs_array.size()){
+					SetError("Failed to get attributes because the key does not have any attribute.");
 					return;
 				}
 			}else{
-				// get error
-				this->SetErrorMessage("Failed to get attributes from key or key does not have any attribute.");
+				SetError("Failed to get attributes from key or key does not have any attribute.");
 				return;
 			}
 		}
 
-		void HandleOKCallback()
+		// handler for success
+		void OnOK() override
 		{
-			Nan::HandleScope		scope;
-			v8::Local<v8::Array>	retarr		= Nan::New<v8::Array>();
-			int						pos			= 0 ;
-			for(strarr_t::const_iterator iter = attrs_array.begin(); iter != attrs_array.end(); ++iter, ++pos){
-				Nan::Set(retarr, pos, Nan::New<v8::String>(iter->c_str()).ToLocalChecked());
-			}
-			const int				argc		= 2;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::Null(), retarr };
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			if(!_callbackRef.IsEmpty()){
+				Napi::Array	retarr	= Napi::Array::New(env, _attrs_array.size());
+				uint32_t	idx		= 0;
+				for(const auto &_str: _attrs_array){
+					retarr.Set(idx++, Napi::String::New(env, _str.c_str(), static_cast<size_t>(strlen(_str.c_str()))));
+				}
+				_callbackRef.Value().Call({ env.Null(), retarr });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				Napi::TypeError::New(env, "Internal error in async worker").ThrowAsJavaScriptException();
 			}
 		}
 
-        void HandleErrorCallback()
-        {
-			Nan::HandleScope		scope;
-			const int				argc		= 2;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::New<v8::String>(this->ErrorMessage()).ToLocalChecked(), Nan::Null() };
+		// handler for failure (by calling SetError)
+		void OnError(const Napi::Error& err) override
+		{
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			std::string	msg;
+			if(err.Value().IsObject()){
+				Napi::Object	obj	= err.Value().As<Napi::Object>();
+				Napi::Value		mv	= obj.Get("message");
+				if(mv.IsString()){
+					msg = mv.As<Napi::String>().Utf8Value();
+				}else{
+					msg = err.Message();
+				}
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				msg = err.Message();
 			}
-        }
+
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ Napi::String::New(env, msg), env.Null() });
+			}else{
+				err.ThrowAsJavaScriptException();
+			}
+		}
 
 	private:
-		K2HShm*		pk2hobj;
-		bool		is_key_set;
-		std::string	strkey;
-		strarr_t	attrs_array;
+		Napi::FunctionReference _callbackRef;
+		K2HShm*					_k2hshm;
+		bool					_is_key_set;
+		std::string				_strkey;
+		strarr_t				_attrs_array;
 };
 
 //---------------------------------------------------------
@@ -504,100 +595,120 @@ class GetAttrsWorker : public Nan::AsyncWorker
 // Callback function:	function(string error[, string value])
 //
 //---------------------------------------------------------
-class GetAttrValueWorker : public Nan::AsyncWorker
+class GetAttrValueAsyncWorker : public Napi::AsyncWorker
 {
 	public:
-		GetAttrValueWorker(Nan::Callback* callback, K2HShm* pobj, const char* pkey, const char* pattr) : Nan::AsyncWorker(callback), pk2hobj(pobj), is_key_set(false), strkey(pkey ? pkey : ""), is_attr_set(false), strattr(pattr ? pattr : "")
+		GetAttrValueAsyncWorker(const Napi::Function& callback, K2HShm* pobj, const char* pkey, const char* pattr) :
+			Napi::AsyncWorker(callback), _callbackRef(Napi::Persistent(callback)), _k2hshm(pobj), _is_key_set(pkey != nullptr), _strkey(pkey ? pkey : ""), _is_attr_set(pattr != nullptr), _strattr(pattr ? pattr : ""), _attrval()
 		{
-			is_key_set	= (NULL != pkey);
-			is_attr_set	= (NULL != pattr);
+			_callbackRef.Ref();
 		}
-		~GetAttrValueWorker() {}
 
-		void Execute()
+		~GetAttrValueAsyncWorker() override
 		{
-			if(!pk2hobj){
-				Nan::ReferenceError("No object is associated to async worker");
+			if(_callbackRef){
+				_callbackRef.Unref();
+				_callbackRef.Reset();
+			}
+		}
+
+		// Run on worker thread
+		void Execute() override
+		{
+			if(!_k2hshm){
+				SetError("No object is associated to async worker");
 				return;
 			}
-			if(!is_key_set){
-				Nan::ReferenceError("Specified key is empty(null)");
+			if(!_is_key_set){
+				SetError("Specified key is empty(null)");
 				return;
 			}
-			if(!is_attr_set){
-				Nan::ReferenceError("Specified attribute key is empty(null)");
+			if(!_is_attr_set){
+				SetError("Specified attribute key is empty(null)");
 				return;
 			}
 
 			// get attributes
-			K2HAttrs*	attrs = pk2hobj->GetAttrs(strkey.c_str());
+			K2HAttrs*	attrs = _k2hshm->GetAttrs(_strkey.c_str());
 			if(attrs){
 				bool	is_found = false;
 				for(K2HAttrs::iterator iter = attrs->begin(); iter != attrs->end(); ++iter){
 					if(0UL == iter->keylength || !iter->pkey){
 						continue;
 					}
-					if(iter->keylength != static_cast<size_t>(strattr.length() + 1)){
+					if(iter->keylength != static_cast<size_t>(_strattr.length() + 1)){
 						continue;
 					}
-					if(0 == memcmp(iter->pkey, strattr.c_str(), iter->keylength)){
+					if(0 == memcmp(iter->pkey, _strattr.c_str(), iter->keylength)){
 						// found
 						if(0 < iter->vallength && iter->pval){
-							attrval = std::string(reinterpret_cast<const char*>(iter->pval), iter->vallength);
+							_attrval.assign(reinterpret_cast<const char*>(iter->pval), iter->vallength);
 						}else{
-							this->SetErrorMessage("Failed to get attribute value because the attr does not have any value.");
+							SetError("Failed to get attribute value because the attr does not have any value.");
 						}
-						is_found	= true;
+						is_found = true;
 						break;
 					}
 				}
 				delete attrs;
 				if(!is_found){
-					// not found
-					this->SetErrorMessage("Failed to get attribute value because the attr does not have any value.");
+					SetError("Failed to get attribute value because the attr does not have any value.");
 				}
 			}else{
-				// get error
-				this->SetErrorMessage("Failed to get attribute value from key or key does not have attribute.");
+				SetError("Failed to get attribute value from key or key does not have attribute.");
 				return;
 			}
 		}
 
-		void HandleOKCallback()
+		// handler for success
+		void OnOK() override
 		{
-			Nan::HandleScope		scope;
-			const int				argc		= 2;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::Null(), Nan::New<v8::String>(attrval.c_str()).ToLocalChecked() };
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			if(!_callbackRef.IsEmpty()){
+				Napi::String	jsVal = Napi::String::New(env, _attrval.c_str(), static_cast<size_t>(strlen(_attrval.c_str())));
+				_callbackRef.Value().Call({ env.Null(), jsVal });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				Napi::TypeError::New(env, "Internal error in async worker").ThrowAsJavaScriptException();
 			}
 		}
 
-        void HandleErrorCallback()
-        {
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::New<v8::String>(this->ErrorMessage()).ToLocalChecked() };
+		// handler for failure (by calling SetError)
+		void OnError(const Napi::Error& err) override
+		{
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			// Extract error message
+			std::string	msg;
+			if(err.Value().IsObject()){
+				Napi::Object	obj	= err.Value().As<Napi::Object>();
+				Napi::Value		mv	= obj.Get("message");
+				if(mv.IsString()){
+					msg = mv.As<Napi::String>().Utf8Value();
+				}else{
+					msg = err.Message();
+				}
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				msg = err.Message();
 			}
-        }
+
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ Napi::String::New(env, msg) });
+			}else{
+				err.ThrowAsJavaScriptException();
+			}
+		}
 
 	private:
-		K2HShm*			pk2hobj;
-		bool			is_key_set;
-		std::string		strkey;
-		bool			is_attr_set;
-		std::string		strattr;
-		std::string		attrval;
+		Napi::FunctionReference	_callbackRef;
+		K2HShm*					_k2hshm;
+		bool					_is_key_set;
+		std::string				_strkey;
+		bool					_is_attr_set;
+		std::string				_strattr;
+		std::string				_attrval;
 };
 
 //---------------------------------------------------------
@@ -607,84 +718,89 @@ class GetAttrValueWorker : public Nan::AsyncWorker
 // Callback function:	function(string error)
 //
 //---------------------------------------------------------
-class SetValueWorker : public Nan::AsyncWorker
+class SetValueAsyncWorker : public Napi::AsyncWorker
 {
 	public:
-		SetValueWorker(Nan::Callback* callback, K2HShm* pobj, const char* pkey, const char* psubkey, const char* pval, const char* ppass, const time_t* pexpire) :
-			Nan::AsyncWorker(callback), pk2hobj(pobj),
-			is_key_set(false), strkey(pkey ? pkey : ""), is_skey_set(false), strsubkey(psubkey ? psubkey : ""), is_val_set(false), strval(pval ? pval : ""), is_pass_set(false), strpass(ppass ? ppass : ""), expire(pexpire ? *pexpire : 0)
+		SetValueAsyncWorker(const Napi::Function& callback, K2HShm* pobj, const char* pkey, const char* psubkey, const char* pval, const char* ppass, const time_t* p_expire) :
+			Napi::AsyncWorker(callback), _callbackRef(Napi::Persistent(callback)), _k2hshm(pobj),
+			_is_key_set(pkey != nullptr), _strkey(pkey ? pkey : ""), _is_skey_set(psubkey != nullptr), _strsubkey(psubkey ? psubkey : ""), _is_val_set(pval != nullptr), _strval(pval ? pval : ""), _is_pass_set(ppass != nullptr), _strpass(ppass ? ppass : ""), _expire(p_expire ? *p_expire : 0)
 		{
-			is_key_set	= (NULL != pkey);
-			is_skey_set	= (NULL != psubkey);
-			is_val_set	= (NULL != pval);
-			is_pass_set	= (NULL != ppass);
+			_callbackRef.Ref();
 		}
-		~SetValueWorker() {}
 
-		void Execute()
+		~SetValueAsyncWorker() override
 		{
-			if(!pk2hobj){
-				Nan::ReferenceError("No object is associated to async worker");
+			if(_callbackRef){
+				_callbackRef.Unref();
+				_callbackRef.Reset();
+			}
+		}
+
+		// Run on worker thread
+		void Execute() override
+		{
+			if(!_k2hshm){
+				SetError("No object is associated to async worker");
 				return;
 			}
-			if(!is_key_set){
-				Nan::ReferenceError("Specified key is empty(null)");
+			if(!_is_key_set){
+				SetError("Specified key is empty(null)");
 				return;
 			}
 
-			bool	result;
-			if(is_skey_set){
+			bool	result = false;
+			if(_is_skey_set){
 				// subkey is specified
-				result = pk2hobj->AddSubkey(strkey.c_str(), strsubkey.c_str(), (is_val_set ? strval.c_str() : NULL), (is_pass_set ? strpass.c_str() : NULL), (expire > 0 ? &expire : NULL));
+				result = _k2hshm->AddSubkey(_strkey.c_str(), _strsubkey.c_str(), (_is_val_set ? _strval.c_str() : NULL), (_is_pass_set ? _strpass.c_str() : NULL), (_expire > 0 ? &_expire : NULL));
 			}else{
 				// subkey is not specified
-				result = pk2hobj->Set(strkey.c_str(), (is_val_set ? strval.c_str() : NULL), (is_pass_set ? strpass.c_str() : NULL), (expire > 0 ? &expire : NULL));
+				result = _k2hshm->Set(_strkey.c_str(), (_is_val_set ? _strval.c_str() : NULL), (_is_pass_set ? _strpass.c_str() : NULL), (_expire > 0 ? &_expire : NULL));
 			}
 			if(!result){
-				// set error
-				this->SetErrorMessage("Failed to set key/subkey and value.");
+				SetError("Failed to set key/subkey and value.");
+				return;
 			}
 		}
 
-		void HandleOKCallback()
+		// handler for success
+		void OnOK() override
 		{
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::Null() };
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ env.Null() });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				Napi::TypeError::New(env, "Internal error in async worker").ThrowAsJavaScriptException();
 			}
 		}
 
-        void HandleErrorCallback()
-        {
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::New<v8::String>(this->ErrorMessage()).ToLocalChecked() };
+		// handler for failure (by calling SetError)
+		void OnError(const Napi::Error& err) override
+		{
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			std::string	msg = err.Message();
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ Napi::String::New(env, msg) });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				err.ThrowAsJavaScriptException();
 			}
-        }
+		}
 
 	private:
-		K2HShm*		pk2hobj;
-		bool		is_key_set;
-		std::string	strkey;
-		bool		is_skey_set;
-		std::string	strsubkey;
-		bool		is_val_set;
-		std::string	strval;
-		bool		is_pass_set;
-		std::string	strpass;
-		time_t		expire;
+		Napi::FunctionReference	_callbackRef;
+		K2HShm*					_k2hshm;
+		bool					_is_key_set;
+		std::string				_strkey;
+		bool					_is_skey_set;
+		std::string				_strsubkey;
+		bool					_is_val_set;
+		std::string				_strval;
+		bool					_is_pass_set;
+		std::string				_strpass;
+		time_t					_expire;
 };
 
 //---------------------------------------------------------
@@ -694,77 +810,82 @@ class SetValueWorker : public Nan::AsyncWorker
 // Callback function:	function(string error)
 //
 //---------------------------------------------------------
-class AddSubkeyWorker : public Nan::AsyncWorker
+class AddSubkeyAsyncWorker : public Napi::AsyncWorker
 {
 	public:
-		AddSubkeyWorker(Nan::Callback* callback, K2HShm* pobj, const char* pkey, const char* psubkey, const char* pval) :
-			Nan::AsyncWorker(callback), pk2hobj(pobj),
-			is_key_set(false), strkey(pkey ? pkey : ""), is_skey_set(false), strsubkey(psubkey ? psubkey : ""), is_val_set(false), strval(pval ? pval : "")
+		AddSubkeyAsyncWorker(const Napi::Function& callback, K2HShm* pobj, const char* pkey, const char* psubkey, const char* pval) :
+			Napi::AsyncWorker(callback), _callbackRef(Napi::Persistent(callback)), _k2hshm(pobj), _is_key_set(pkey != nullptr), _strkey(pkey ? pkey : ""), _is_skey_set(psubkey != nullptr), _strsubkey(psubkey ? psubkey : ""), _is_val_set(pval != nullptr), _strval(pval ? pval : "")
 		{
-			is_key_set	= (NULL != pkey);
-			is_skey_set	= (NULL != psubkey);
-			is_val_set	= (NULL != pval);
+			_callbackRef.Ref();
 		}
-		~AddSubkeyWorker() {}
 
-		void Execute()
+		~AddSubkeyAsyncWorker() override
 		{
-			if(!pk2hobj){
-				Nan::ReferenceError("No object is associated to async worker");
+			if(_callbackRef){
+				_callbackRef.Unref();
+				_callbackRef.Reset();
+			}
+		}
+
+		// Run on worker thread
+		void Execute() override
+		{
+			if(!_k2hshm){
+				SetError("No object is associated to async worker");
 				return;
 			}
-			if(!is_key_set){
-				Nan::ReferenceError("Specified key is empty(null)");
+			if(!_is_key_set){
+				SetError("Specified key is empty(null)");
 				return;
 			}
-			if(!is_skey_set){
-				Nan::ReferenceError("Specified subkey is empty(null)");
+			if(!_is_skey_set){
+				SetError("Specified subkey is empty(null)");
 				return;
 			}
 
 			// add subkey
-			if(!pk2hobj->AddSubkey(strkey.c_str(), strsubkey.c_str(), (is_val_set ? strval.c_str() : NULL))){
-				// set error
-				this->SetErrorMessage("Failed to set subkey and value to key.");
+			if(!_k2hshm->AddSubkey(_strkey.c_str(), _strsubkey.c_str(), (_is_val_set ? _strval.c_str() : NULL))){
+				SetError("Failed to set subkey and value to key.");
+				return;
 			}
 		}
 
-		void HandleOKCallback()
+		// handler for success
+		void OnOK() override
 		{
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::Null() };
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ env.Null() });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				Napi::TypeError::New(env, "Internal error in async worker").ThrowAsJavaScriptException();
 			}
 		}
 
-        void HandleErrorCallback()
-        {
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::New<v8::String>(this->ErrorMessage()).ToLocalChecked() };
+		// handler for failure (by calling SetError)
+		void OnError(const Napi::Error& err) override
+		{
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			std::string	msg = err.Message();
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ Napi::String::New(env, msg) });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				err.ThrowAsJavaScriptException();
 			}
-        }
+		}
 
 	private:
-		K2HShm*		pk2hobj;
-		bool		is_key_set;
-		std::string	strkey;
-		bool		is_skey_set;
-		std::string	strsubkey;
-		bool		is_val_set;
-		std::string	strval;
+		Napi::FunctionReference	_callbackRef;
+		K2HShm*					_k2hshm;
+		bool					_is_key_set;
+		std::string				_strkey;
+		bool					_is_skey_set;
+		std::string				_strsubkey;
+		bool					_is_val_set;
+		std::string				_strval;
 };
 
 //---------------------------------------------------------
@@ -774,84 +895,91 @@ class AddSubkeyWorker : public Nan::AsyncWorker
 // Callback function:	function(string error)
 //
 //---------------------------------------------------------
-class AddSubkeysWorker : public Nan::AsyncWorker
+class AddSubkeysAsyncWorker : public Napi::AsyncWorker
 {
 	public:
-		AddSubkeysWorker(Nan::Callback* callback, K2HShm* pobj, const char* pkey, const unsigned char* psubkeys, size_t skey_length) : Nan::AsyncWorker(callback), pk2hobj(pobj), is_key_set(false), strkey(pkey ? pkey : ""), bySubkeys(NULL), skeylen(0), alloc_error(false)
+		AddSubkeysAsyncWorker(const Napi::Function& callback, K2HShm* pobj, const char* pkey, const unsigned char* psubkeys, size_t skey_length) :
+			Napi::AsyncWorker(callback), _callbackRef(Napi::Persistent(callback)), _k2hshm(pobj), _is_key_set(pkey != nullptr), _strkey(pkey ? pkey : ""), _bySubkeys(nullptr), _skeylen(0), _alloc_error(false)
 		{
 			if(psubkeys && 0UL < skey_length){
-				if(NULL != (bySubkeys = reinterpret_cast<unsigned char*>(malloc(skey_length)))){
-					memcpy(bySubkeys, psubkeys, skey_length);
-					skeylen = skey_length;
+				if(nullptr != (_bySubkeys = reinterpret_cast<unsigned char*>(malloc(skey_length)))){
+					memcpy(_bySubkeys, psubkeys, skey_length);
+					_skeylen = skey_length;
 				}else{
 					// could not allocate memory.
-					alloc_error = true;
+					_alloc_error = true;
 				}
 			}
-			is_key_set	= (NULL != pkey);
-		}
-		~AddSubkeysWorker()
-		{
-			K2H_Free(bySubkeys);
+			_callbackRef.Ref();
 		}
 
-		void Execute()
+		~AddSubkeysAsyncWorker() override
 		{
-			if(!pk2hobj){
-				Nan::ReferenceError("No object is associated to async worker");
+			if(_callbackRef){
+				_callbackRef.Unref();
+				_callbackRef.Reset();
+			}
+			K2H_Free(_bySubkeys);
+		}
+
+		// Run on worker thread
+		void Execute() override
+		{
+			if(!_k2hshm){
+				SetError("No object is associated to async worker");
 				return;
 			}
-			if(!is_key_set){
-				Nan::ReferenceError("Specified key is empty(null)");
+			if(!_is_key_set){
+				SetError("Specified key is empty(null)");
 				return;
 			}
-			if(alloc_error){
-				Nan::ReferenceError("Could not allocate memory");
+			if(_alloc_error){
+				SetError("Could not allocate memory");
 				return;
 			}
 
 			// add subkeys
-			if(!pk2hobj->ReplaceSubkeys(reinterpret_cast<const unsigned char*>(strkey.c_str()), strkey.length() + 1, bySubkeys, skeylen)){
-				// set error
-				this->SetErrorMessage("Failed to replace subkeys to key.");
+			if(!_k2hshm->ReplaceSubkeys(reinterpret_cast<const unsigned char*>(_strkey.c_str()), _strkey.length() + 1, _bySubkeys, _skeylen)){
+				SetError("Failed to replace subkeys to key.");
+				return;
 			}
 		}
 
-		void HandleOKCallback()
+		// handler for success
+		void OnOK() override
 		{
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::Null() };
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ env.Null() });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				Napi::TypeError::New(env, "Internal error in async worker").ThrowAsJavaScriptException();
 			}
 		}
 
-        void HandleErrorCallback()
-        {
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::New<v8::String>(this->ErrorMessage()).ToLocalChecked() };
+		// handler for failure (by calling SetError)
+		void OnError(const Napi::Error& err) override
+		{
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			std::string msg = err.Message();
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ Napi::String::New(env, msg) });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				err.ThrowAsJavaScriptException();
 			}
-        }
+		}
 
 	private:
-		K2HShm*			pk2hobj;
-		bool			is_key_set;
-		std::string		strkey;
-		unsigned char*	bySubkeys;
-		size_t			skeylen;
-		bool			alloc_error;
+		Napi::FunctionReference	_callbackRef;
+		K2HShm*					_k2hshm;
+		bool					_is_key_set;
+		std::string				_strkey;
+		unsigned char*			_bySubkeys;
+		size_t					_skeylen;
+		bool					_alloc_error;
 };
 
 //---------------------------------------------------------
@@ -861,77 +989,95 @@ class AddSubkeysWorker : public Nan::AsyncWorker
 // Callback function:	function(string error)
 //
 //---------------------------------------------------------
-class AddAttrWorker : public Nan::AsyncWorker
+class AddAttrAsyncWorker : public Napi::AsyncWorker
 {
 	public:
-		AddAttrWorker(Nan::Callback* callback, K2HShm* pobj, const char* pkey, const char* pattrkey, const char* pattrval) :
-			Nan::AsyncWorker(callback), pk2hobj(pobj),
-			is_key_set(false), strkey(pkey ? pkey : ""), is_attr_set(false), strattr(pattrkey ? pattrkey : ""), is_val_set(false), strval(pattrval ? pattrval : "")
+		AddAttrAsyncWorker(const Napi::Function& callback, K2HShm* pobj, const char* pkey, const char* pattrkey, const char* pattrval) :
+			Napi::AsyncWorker(callback), _callbackRef(Napi::Persistent(callback)), _k2hshm(pobj), _is_key_set(pkey != nullptr), _strkey(pkey ? pkey : ""), _is_attr_set(pattrkey != nullptr), _strattr(pattrkey ? pattrkey : ""), _is_val_set(pattrval != nullptr), _strval(pattrval ? pattrval : "")
 		{
-			is_key_set	= (NULL != pkey);
-			is_attr_set	= (NULL != pattrkey);
-			is_val_set	= (NULL != pattrval);
+			_callbackRef.Ref();
 		}
-		~AddAttrWorker() {}
 
-		void Execute()
+		~AddAttrAsyncWorker() override
 		{
-			if(!pk2hobj){
-				Nan::ReferenceError("No object is associated to async worker");
+			if(_callbackRef){
+				_callbackRef.Unref();
+				_callbackRef.Reset();
+			}
+		}
+
+		// Run on worker thread
+		void Execute() override
+		{
+			if(!_k2hshm){
+				SetError("No object is associated to async worker");
 				return;
 			}
-			if(!is_key_set){
-				Nan::ReferenceError("Specified key is empty(null)");
+			if(!_is_key_set){
+				SetError("Specified key is empty(null)");
 				return;
 			}
-			if(!is_attr_set){
-				Nan::ReferenceError("Specified attribute name is empty(null)");
+			if(!_is_attr_set){
+				SetError("Specified attribute name is empty(null)");
 				return;
 			}
 
 			// add attribute
-			if(!pk2hobj->AddAttr(strkey.c_str(), strattr.c_str(), (is_val_set ? strval.c_str() : NULL))){
-				// set error
-				this->SetErrorMessage("Failed to set attribute and value to key.");
+			if(!_k2hshm->AddAttr(_strkey.c_str(), _strattr.c_str(), (_is_val_set ? _strval.c_str() : NULL))){
+				SetError("Failed to set attribute and value to key.");
+				return;
 			}
 		}
 
-		void HandleOKCallback()
+		// handler for success
+		void OnOK() override
 		{
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::Null() };
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ env.Null() });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				Napi::TypeError::New(env, "Internal error in async worker").ThrowAsJavaScriptException();
 			}
 		}
 
-        void HandleErrorCallback()
-        {
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::New<v8::String>(this->ErrorMessage()).ToLocalChecked() };
+		// handler for failure (by calling SetError)
+		void OnError(const Napi::Error& err) override
+		{
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			// Extract message
+			std::string	msg;
+			if(err.Value().IsObject()){
+				Napi::Object	obj	= err.Value().As<Napi::Object>();
+				Napi::Value		mv	= obj.Get("message");
+				if(mv.IsString()){
+					msg = mv.As<Napi::String>().Utf8Value();
+				}else{
+					msg = err.Message();
+				}
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				msg = err.Message();
 			}
-        }
+
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ Napi::String::New(env, msg) });
+			}else{
+				err.ThrowAsJavaScriptException();
+			}
+		}
 
 	private:
-		K2HShm*		pk2hobj;
-		bool		is_key_set;
-		std::string	strkey;
-		bool		is_attr_set;
-		std::string	strattr;
-		bool		is_val_set;
-		std::string	strval;
+		Napi::FunctionReference	_callbackRef;
+		K2HShm*					_k2hshm;
+		bool					_is_key_set;
+		std::string				_strkey;
+		bool					_is_attr_set;
+		std::string				_strattr;
+		bool					_is_val_set;
+		std::string				_strval;
 };
 
 //---------------------------------------------------------
@@ -941,81 +1087,88 @@ class AddAttrWorker : public Nan::AsyncWorker
 // Callback function:	function(string error)
 //
 //---------------------------------------------------------
-class RemoveWorker : public Nan::AsyncWorker
+class RemoveAsyncWorker : public Napi::AsyncWorker
 {
 	public:
-		RemoveWorker(Nan::Callback* callback, K2HShm* pobj, const char* pkey, const char* psubkey, bool is_all) : Nan::AsyncWorker(callback), pk2hobj(pobj), is_key_set(false), strkey(pkey ? pkey : ""), is_skey_set(false), strsubkey(psubkey ? psubkey : ""), is_remove_all(is_all)
+		RemoveAsyncWorker(const Napi::Function& callback, K2HShm* pobj, const char* pkey, const char* psubkey, bool is_all) :
+			Napi::AsyncWorker(callback), _callbackRef(Napi::Persistent(callback)), _k2hshm(pobj), _is_key_set(pkey != nullptr), _strkey(pkey ? pkey : ""), _is_skey_set(psubkey != nullptr), _strsubkey(psubkey ? psubkey : ""), _is_remove_all(is_all)
 		{
-			is_key_set		= (NULL != pkey);
-			if(is_remove_all){
-				strsubkey.clear();
-			}else{
-				is_skey_set	= (NULL != psubkey);
+			if(_is_remove_all){
+				_strsubkey.clear();
+				_is_skey_set = false;
+			}
+			_callbackRef.Ref();
+		}
+
+		~RemoveAsyncWorker() override
+		{
+			if(_callbackRef){
+				_callbackRef.Unref();
+				_callbackRef.Reset();
 			}
 		}
-		~RemoveWorker() {}
 
-		void Execute()
+		// Run on worker thread
+		void Execute() override
 		{
-			if(!pk2hobj){
-				Nan::ReferenceError("No object is associated to async worker");
+			if(!_k2hshm){
+				SetError("No object is associated to async worker");
 				return;
 			}
-			if(!is_key_set){
-				Nan::ReferenceError("Specified key is empty(null)");
+			if(!_is_key_set){
+				SetError("Specified key is empty(null)");
 				return;
 			}
 
-			// remove
-			bool	result;
-			if(is_remove_all){
-				result = pk2hobj->Remove(strkey.c_str(), true);
-			}else if(is_skey_set){
-				result = pk2hobj->Remove(strkey.c_str(), strsubkey.c_str());
+			bool	result = false;
+			if(_is_remove_all){
+				result = _k2hshm->Remove(_strkey.c_str(), true);
+			}else if(_is_skey_set){
+				result = _k2hshm->Remove(_strkey.c_str(), _strsubkey.c_str());
 			}else{
-				result = pk2hobj->Remove(strkey.c_str(), false);
+				result = _k2hshm->Remove(_strkey.c_str(), false);
 			}
 			if(!result){
-				// set error
-				this->SetErrorMessage("Failed to remove key (and subkey).");
+				SetError("Failed to remove key (and subkey).");
+				return;
 			}
 		}
 
-		void HandleOKCallback()
+		// handler for success
+		void OnOK() override
 		{
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::Null() };
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ env.Null() });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				Napi::TypeError::New(env, "Internal error in async worker").ThrowAsJavaScriptException();
 			}
 		}
 
-        void HandleErrorCallback()
-        {
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::New<v8::String>(this->ErrorMessage()).ToLocalChecked() };
+		// handler for failure (by calling SetError)
+		void OnError(const Napi::Error& err) override
+		{
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			std::string	msg = err.Message();
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ Napi::String::New(env, msg) });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				err.ThrowAsJavaScriptException();
 			}
-        }
+		}
 
 	private:
-		K2HShm*		pk2hobj;
-		bool		is_key_set;
-		std::string	strkey;
-		bool		is_skey_set;
-		std::string	strsubkey;
-		bool		is_remove_all;
+		Napi::FunctionReference	_callbackRef;
+		K2HShm*					_k2hshm;
+		bool					_is_key_set;
+		std::string				_strkey;
+		bool					_is_skey_set;
+		std::string				_strsubkey;
+		bool					_is_remove_all;
 };
 
 //---------------------------------------------------------
@@ -1025,75 +1178,84 @@ class RemoveWorker : public Nan::AsyncWorker
 // Callback function:	function(string error)
 //
 //---------------------------------------------------------
-class ArchiveWorker : public Nan::AsyncWorker
+class ArchiveAsyncWorker : public Napi::AsyncWorker
 {
 	public:
-		ArchiveWorker(Nan::Callback* callback, K2HShm* pobj, const char* file, bool is_error_skip, bool is_load) : Nan::AsyncWorker(callback), pk2hobj(pobj), is_file_set(false), strfile(file ? file : ""), errskip(is_error_skip), is_load_type(is_load)
+		ArchiveAsyncWorker(const Napi::Function& callback, K2HShm* pobj, const char* file, bool is_error_skip, bool is_load) :
+			Napi::AsyncWorker(callback), _callbackRef(Napi::Persistent(callback)), _k2hshm(pobj), _is_file_set(file != nullptr), _strfile(file ? file : ""), _errskip(is_error_skip), _is_load_type(is_load)
 		{
-			is_file_set = (NULL != file);
+			_callbackRef.Ref();
 		}
-		~ArchiveWorker() {}
 
-		void Execute()
+		~ArchiveAsyncWorker() override
 		{
-			if(!pk2hobj){
-				Nan::ReferenceError("No object is associated to async worker");
+			if(_callbackRef){
+				_callbackRef.Unref();
+				_callbackRef.Reset();
+			}
+		}
+
+		// Run on worker thread
+		void Execute() override
+		{
+			if(!_k2hshm){
+				SetError("No object is associated to async worker");
 				return;
 			}
-			if(!is_file_set){
-				Nan::ReferenceError("Specified file name is empty(null)");
+			if(!_is_file_set){
+				SetError("Specified file name is empty(null)");
 				return;
 			}
 
-			if(is_load_type){
+			if(_is_load_type){
 				// load archive
-				if(!k2h_load_archive(reinterpret_cast<k2h_h>(pk2hobj), strfile.c_str(), errskip)){
-					// set error
-					this->SetErrorMessage("Failed to load archive file.");
+				if(!k2h_load_archive(reinterpret_cast<k2h_h>(_k2hshm), _strfile.c_str(), _errskip)){
+					SetError("Failed to load archive file.");
+					return;
 				}
 			}else{
 				// put archive
-				if(!k2h_put_archive(reinterpret_cast<k2h_h>(pk2hobj), strfile.c_str(), errskip)){
-					// set error
-					this->SetErrorMessage("Failed to put archive file.");
+				if(!k2h_put_archive(reinterpret_cast<k2h_h>(_k2hshm), _strfile.c_str(), _errskip)){
+					SetError("Failed to put archive file.");
+					return;
 				}
 			}
 		}
 
-		void HandleOKCallback()
+		// handler for success
+		void OnOK() override
 		{
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::Null() };
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ env.Null() });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				Napi::TypeError::New(env, "Internal error in async worker").ThrowAsJavaScriptException();
 			}
 		}
 
-        void HandleErrorCallback()
-        {
-			Nan::HandleScope		scope;
-			const int				argc		= 1;
-			v8::Local<v8::Value>	argv[argc]	= { Nan::New<v8::String>(this->ErrorMessage()).ToLocalChecked() };
+		// handler for failure (by calling SetError)
+		void OnError(const Napi::Error& err) override
+		{
+			Napi::Env env = Env();
+			Napi::HandleScope scope(env);
 
-			if(callback){
-				callback->Call(argc, argv);
+			std::string msg = err.Message();
+			if(!_callbackRef.IsEmpty()){
+				_callbackRef.Value().Call({ Napi::String::New(env, msg) });
 			}else{
-				Nan::ThrowSyntaxError("Internal error in async worker");
-				return;
+				err.ThrowAsJavaScriptException();
 			}
-        }
+		}
 
 	private:
-		K2HShm*		pk2hobj;
-		bool		is_file_set;
-		std::string	strfile;
-		bool		errskip;
-		bool		is_load_type;
+		Napi::FunctionReference	_callbackRef;
+		K2HShm*					_k2hshm;
+		bool					_is_file_set;
+		std::string				_strfile;
+		bool					_errskip;
+		bool					_is_load_type;
 };
 
 #endif

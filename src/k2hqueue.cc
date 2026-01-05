@@ -20,23 +20,36 @@
 
 #include "k2h_queue.h"
 
-using namespace v8 ;
-
 //---------------------------------------------------------
 // k2hqueue node object
 //---------------------------------------------------------
-NAN_METHOD(CreateObject)
+Napi::Value CreateObject(const Napi::CallbackInfo& info)
 {
-	K2hQueue::NewInstance(info);
+	Napi::Env env = info.Env();
+
+	if(0 < info.Length()){
+		return K2hQueue::NewInstance(env, info[0]);
+	}else{
+		return K2hQueue::NewInstance(env);
+	}
 }
 
-void InitAll(Local<Object> exports, Local<Object> module)
+Napi::Object InitAll(Napi::Env env, Napi::Object exports)
 {
-	K2hQueue::Init() ;
-	Nan::Set(module, Nan::New("exports").ToLocalChecked(), Nan::GetFunction(Nan::New<FunctionTemplate>(CreateObject)).ToLocalChecked());
+	// Register class / create constructor (store in K2hQueue::constructor)
+	K2hQueue::Init(env, exports);
+
+	// Create factory function to be assigned to module.exports
+	Napi::Function createFn = Napi::Function::New(env, CreateObject, "k2hqueue");
+
+	// Attach constructor for compatibility (require('k2hqueue').K2hQueue)
+	createFn.Set("K2hQueue", K2hQueue::constructor.Value());
+
+	// Return factory function as module.exports
+	return createFn;
 }
 
-NODE_MODULE(k2hqueue, InitAll)
+NODE_API_MODULE(k2hqueue, InitAll)
 
 /*
  * Local variables:

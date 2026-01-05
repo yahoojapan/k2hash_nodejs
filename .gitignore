@@ -49,7 +49,12 @@ node_modules
 ### Optional npm cache directory
 .npm
 
-### Optional npm cache directory
+### Optional other directory
+prebuilds
+tests_cjs
+types-generated
+
+### Optional npm cache
 package-lock.json
 
 ### Optional REPL history
@@ -59,10 +64,12 @@ package-lock.json
 *.swp
 *.k2h
 *.tgz
+*.tar.gz
 *.ar
 *.tr
 *.log
 *.xml
+*.sha256
 
 ### Compiled Object files
 *.slo
@@ -92,7 +99,7 @@ package-lock.json
 *.OLD*
 *.TEST*
 
-### Internal Yahoo JAPAN
+### Other
 artifacts
 rhel.*
 

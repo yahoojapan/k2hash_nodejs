@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.cjs.json",
+  "compilerOptions": {
+    "outDir": "tests_cjs",
+    "rootDir": "tests",
+    "sourceMap": false
+  },
+  "include": [
+    "tests/**/*"
+  ]
+}

@@ -27,120 +27,125 @@
 //---------------------------------------------------------
 // K2hNode Class
 //---------------------------------------------------------
-class K2hNode : public Nan::ObjectWrap
+class K2hNode : public Napi::ObjectWrap<K2hNode>
 {
 	friend class	K2hQueue;
 	friend class	K2hKeyQueue;
 
 	public:
-		static void Init(void);
-		static NAN_METHOD(NewInstance);
+		static void Init(Napi::Env env, Napi::Object exports);
+		static Napi::Object NewInstance(Napi::Env env);
 
-	private:
-		explicit K2hNode(void);
+		// Constructor / Destructor
+		explicit K2hNode(const Napi::CallbackInfo& info);
 		~K2hNode();
 
-		static NAN_METHOD(New);
+	private:
+		Napi::Value New(const Napi::CallbackInfo& info);
 
-		static NAN_METHOD(On);
-		static NAN_METHOD(OnCreate);
-		static NAN_METHOD(OnOpen);
-		static NAN_METHOD(OnOpenRW);
-		static NAN_METHOD(OnOpenRO);
-		static NAN_METHOD(OnOpenTempfile);
-		static NAN_METHOD(OnOpenMem);
-		static NAN_METHOD(OnClose);
-		static NAN_METHOD(OnGet);
-		static NAN_METHOD(OnGetSubkeys);
-		static NAN_METHOD(OnGetAttrs);
-		static NAN_METHOD(OnGetAttrValue);
-		static NAN_METHOD(OnSet);
-		static NAN_METHOD(OnAddSubkey);
-		static NAN_METHOD(OnAddSubkeys);
-		static NAN_METHOD(OnAddAttr);
-		static NAN_METHOD(OnRemove);
-		static NAN_METHOD(OnRemoveAll);
-		static NAN_METHOD(OnLoad);
-		static NAN_METHOD(OnPut);
-		static NAN_METHOD(Off);
-		static NAN_METHOD(OffCreate);
-		static NAN_METHOD(OffOpen);
-		static NAN_METHOD(OffOpenRW);
-		static NAN_METHOD(OffOpenRO);
-		static NAN_METHOD(OffOpenTempfile);
-		static NAN_METHOD(OffOpenMem);
-		static NAN_METHOD(OffClose);
-		static NAN_METHOD(OffGet);
-		static NAN_METHOD(OffGetSubkeys);
-		static NAN_METHOD(OffGetAttrs);
-		static NAN_METHOD(OffGetAttrValue);
-		static NAN_METHOD(OffSet);
-		static NAN_METHOD(OffAddSubkey);
-		static NAN_METHOD(OffAddSubkeys);
-		static NAN_METHOD(OffAddAttr);
-		static NAN_METHOD(OffRemove);
-		static NAN_METHOD(OffRemoveAll);
-		static NAN_METHOD(OffLoad);
-		static NAN_METHOD(OffPut);
+		Napi::Value On(const Napi::CallbackInfo& info);
+		Napi::Value OnCreate(const Napi::CallbackInfo& info);
+		Napi::Value OnOpen(const Napi::CallbackInfo& info);
+		Napi::Value OnOpenRW(const Napi::CallbackInfo& info);
+		Napi::Value OnOpenRO(const Napi::CallbackInfo& info);
+		Napi::Value OnOpenTempfile(const Napi::CallbackInfo& info);
+		Napi::Value OnOpenMem(const Napi::CallbackInfo& info);
+		Napi::Value OnClose(const Napi::CallbackInfo& info);
+		Napi::Value OnGet(const Napi::CallbackInfo& info);
+		Napi::Value OnGetSubkeys(const Napi::CallbackInfo& info);
+		Napi::Value OnGetAttrs(const Napi::CallbackInfo& info);
+		Napi::Value OnGetAttrValue(const Napi::CallbackInfo& info);
+		Napi::Value OnSet(const Napi::CallbackInfo& info);
+		Napi::Value OnAddSubkey(const Napi::CallbackInfo& info);
+		Napi::Value OnAddSubkeys(const Napi::CallbackInfo& info);
+		Napi::Value OnAddAttr(const Napi::CallbackInfo& info);
+		Napi::Value OnRemove(const Napi::CallbackInfo& info);
+		Napi::Value OnRemoveAll(const Napi::CallbackInfo& info);
+		Napi::Value OnLoad(const Napi::CallbackInfo& info);
+		Napi::Value OnPut(const Napi::CallbackInfo& info);
+		Napi::Value Off(const Napi::CallbackInfo& info);
+		Napi::Value OffCreate(const Napi::CallbackInfo& info);
+		Napi::Value OffOpen(const Napi::CallbackInfo& info);
+		Napi::Value OffOpenRW(const Napi::CallbackInfo& info);
+		Napi::Value OffOpenRO(const Napi::CallbackInfo& info);
+		Napi::Value OffOpenTempfile(const Napi::CallbackInfo& info);
+		Napi::Value OffOpenMem(const Napi::CallbackInfo& info);
+		Napi::Value OffClose(const Napi::CallbackInfo& info);
+		Napi::Value OffGet(const Napi::CallbackInfo& info);
+		Napi::Value OffGetSubkeys(const Napi::CallbackInfo& info);
+		Napi::Value OffGetAttrs(const Napi::CallbackInfo& info);
+		Napi::Value OffGetAttrValue(const Napi::CallbackInfo& info);
+		Napi::Value OffSet(const Napi::CallbackInfo& info);
+		Napi::Value OffAddSubkey(const Napi::CallbackInfo& info);
+		Napi::Value OffAddSubkeys(const Napi::CallbackInfo& info);
+		Napi::Value OffAddAttr(const Napi::CallbackInfo& info);
+		Napi::Value OffRemove(const Napi::CallbackInfo& info);
+		Napi::Value OffRemoveAll(const Napi::CallbackInfo& info);
+		Napi::Value OffLoad(const Napi::CallbackInfo& info);
+		Napi::Value OffPut(const Napi::CallbackInfo& info);
 
-		static NAN_METHOD(Create);
-		static NAN_METHOD(Open);
-		static NAN_METHOD(OpenRW);
-		static NAN_METHOD(OpenRO);
-		static NAN_METHOD(OpenTempfile);
-		static NAN_METHOD(OpenMem);
-		static NAN_METHOD(Close);
+		Napi::Value Create(const Napi::CallbackInfo& info);
+		Napi::Value Open(const Napi::CallbackInfo& info);
+		Napi::Value OpenRW(const Napi::CallbackInfo& info);
+		Napi::Value OpenRO(const Napi::CallbackInfo& info);
+		Napi::Value OpenTempfile(const Napi::CallbackInfo& info);
+		Napi::Value OpenMem(const Napi::CallbackInfo& info);
+		Napi::Value Close(const Napi::CallbackInfo& info);
 
-		static NAN_METHOD(GetValue);
-		static NAN_METHOD(GetSubkeys);
+		Napi::Value GetValue(const Napi::CallbackInfo& info);
+		Napi::Value GetSubkeys(const Napi::CallbackInfo& info);
 
-		static NAN_METHOD(SetValue);
-		static NAN_METHOD(AddSubkey);
-		static NAN_METHOD(AddSubkeys);
+		Napi::Value SetValue(const Napi::CallbackInfo& info);
+		Napi::Value AddSubkey(const Napi::CallbackInfo& info);
+		Napi::Value AddSubkeys(const Napi::CallbackInfo& info);
 
-		static NAN_METHOD(Remove);
-		static NAN_METHOD(RemoveAll);
+		Napi::Value Remove(const Napi::CallbackInfo& info);
+		Napi::Value RemoveAll(const Napi::CallbackInfo& info);
 
-		static NAN_METHOD(PrintState);
-		static NAN_METHOD(PrintVersion);
+		Napi::Value PrintState(const Napi::CallbackInfo& info);
+		Napi::Value PrintVersion(const Napi::CallbackInfo& info);
 
-		static NAN_METHOD(DumpHead);
-		static NAN_METHOD(DumpKeytable);
-		static NAN_METHOD(DumpFullKeytable);
-		static NAN_METHOD(DumpElementtable);
-		static NAN_METHOD(DumpFull);
+		Napi::Value DumpHead(const Napi::CallbackInfo& info);
+		Napi::Value DumpKeytable(const Napi::CallbackInfo& info);
+		Napi::Value DumpFullKeytable(const Napi::CallbackInfo& info);
+		Napi::Value DumpElementtable(const Napi::CallbackInfo& info);
+		Napi::Value DumpFull(const Napi::CallbackInfo& info);
 
-		static NAN_METHOD(Transaction);
-		static NAN_METHOD(EnableTransaction);
-		static NAN_METHOD(DisableTransaction);
+		Napi::Value Transaction(const Napi::CallbackInfo& info);
+		Napi::Value EnableTransaction(const Napi::CallbackInfo& info);
+		Napi::Value DisableTransaction(const Napi::CallbackInfo& info);
 
-		static NAN_METHOD(GetTransactionThreadPool);
-		static NAN_METHOD(SetTransactionThreadPool);
-		static NAN_METHOD(UnsetTransactionThreadPool);
+		Napi::Value GetTransactionThreadPool(const Napi::CallbackInfo& info);
+		Napi::Value SetTransactionThreadPool(const Napi::CallbackInfo& info);
+		Napi::Value UnsetTransactionThreadPool(const Napi::CallbackInfo& info);
 
-		static NAN_METHOD(PutArchive);
-		static NAN_METHOD(LoadArchive);
+		Napi::Value PutArchive(const Napi::CallbackInfo& info);
+		Napi::Value LoadArchive(const Napi::CallbackInfo& info);
 
-		static NAN_METHOD(getQueue);
-		static NAN_METHOD(getKeyQueue);
+		Napi::Value getQueue(const Napi::CallbackInfo& info);
+		Napi::Value getKeyQueue(const Napi::CallbackInfo& info);
 
-		static NAN_METHOD(SetCommonAttribute);
-		static NAN_METHOD(CleanCommonAttribute);
+		Napi::Value SetCommonAttribute(const Napi::CallbackInfo& info);
+		Napi::Value CleanCommonAttribute(const Napi::CallbackInfo& info);
 
-		static NAN_METHOD(AddAttrPluginLib);
-		static NAN_METHOD(AddAttrCryptPass);
+		Napi::Value AddAttrPluginLib(const Napi::CallbackInfo& info);
+		Napi::Value AddAttrCryptPass(const Napi::CallbackInfo& info);
 
-		static NAN_METHOD(GetAttrVersionInfos);
-		static NAN_METHOD(GetAttrInfos);
-		static NAN_METHOD(GetAttrs);
-		static NAN_METHOD(GetAttrValue);
+		Napi::Value GetAttrVersionInfos(const Napi::CallbackInfo& info);
+		Napi::Value GetAttrInfos(const Napi::CallbackInfo& info);
+		Napi::Value GetAttrs(const Napi::CallbackInfo& info);
+		Napi::Value GetAttrValue(const Napi::CallbackInfo& info);
 
-		static NAN_METHOD(AddAttr);
+		Napi::Value AddAttr(const Napi::CallbackInfo& info);
+
+	public:
+		// constructor reference
+		static Napi::FunctionReference	constructor;
+
+		StackEmitCB	_cbs;
 
 	private:
-		static Nan::Persistent<v8::Function>	constructor;
-		K2HShm									_k2hshm;
-		StackEmitCB								_cbs;
+		K2HShm		_k2hshm;
 };
 
 #endif
