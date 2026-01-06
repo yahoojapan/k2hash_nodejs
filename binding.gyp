@@ -14,7 +14,7 @@
 				"src/k2h_cbs.cc"
 			],
 			"include_dirs": [
-				"<!(node -p \"require('node-addon-api').include\")",
+				"<!(node -e \"incpath = require('node-addon-api').include; if(incpath.length && incpath[0] === '\\\"' && incpath[incpath.length - 1] === '\\\"') incpath = incpath.slice(1, -1); process.stdout.write(incpath)\")",
 				"<(module_root_dir)/node_modules/node-addon-api"
 			],
 			"dependencies": [
@@ -46,7 +46,7 @@
 				"src/k2h_cbs.cc"
 			],
 			"include_dirs": [
-				"<!(node -p \"require('node-addon-api').include\")",
+				"<!(node -e \"incpath = require('node-addon-api').include; if(incpath.length && incpath[0] === '\\\"' && incpath[incpath.length - 1] === '\\\"') incpath = incpath.slice(1, -1); process.stdout.write(incpath)\")",
 				"<(module_root_dir)/node_modules/node-addon-api"
 			],
 			"dependencies": [
@@ -78,7 +78,7 @@
 				"src/k2h_cbs.cc"
 			],
 			"include_dirs": [
-				"<!(node -p \"require('node-addon-api').include\")",
+				"<!(node -e \"incpath = require('node-addon-api').include; if(incpath.length && incpath[0] === '\\\"' && incpath[incpath.length - 1] === '\\\"') incpath = incpath.slice(1, -1); process.stdout.write(incpath)\")",
 				"<(module_root_dir)/node_modules/node-addon-api"
 			],
 			"dependencies": [
