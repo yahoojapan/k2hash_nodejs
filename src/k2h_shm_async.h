@@ -301,12 +301,7 @@ class GetValueAsyncWorker : public Napi::AsyncWorker
 				if(sk){
 					strarr_t	strarr;
 					sk->StringArray(strarr);
-					for(const auto &_str : strarr){
-						if(_str == _strsubkey){
-							found = true;
-							break;
-						}
-					}
+					found = std::any_of(strarr.begin(), strarr.end(), [&](const auto &_str){ return _str == _strsubkey; });
 					delete sk;
 				}
 				if(!found){
