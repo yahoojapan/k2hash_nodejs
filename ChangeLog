@@ -1,3 +1,10 @@
+k2hash (2.0.1) unstable; urgency=low
+
+  * Changed cppcheck options and fixed the code - #68
+  * Fixed include dir path in binding.gyp - #67
+
+ -- Takeshi Nakatani <ggtakec@gmail.com>  Tue, 06 Jan 2026 11:07:44 +0900
+
 k2hash (2.0.0) unstable; urgency=low
 
   * Updated dependent package versions and Fixed scripts - #65
