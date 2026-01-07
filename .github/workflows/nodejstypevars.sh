@@ -433,7 +433,7 @@ fi
 # Each value has a default value for NodeJS processing.
 #
 #	CPPCHECK_TARGET					"."
-#	CPPCHECK_BASE_OPT				"--quiet --error-exitcode=1 --inline-suppr -j 4 --std=c++03 --xml"
+#	CPPCHECK_BASE_OPT				"--quiet --error-exitcode=1 --inline-suppr -j 4 --std=c++17 --xml"
 #	CPPCHECK_ENABLE_VALUES			"warning style information missingInclude"
 #	CPPCHECK_IGNORE_VALUES			"unmatchedSuppression missingIncludeSystem normalCheckLevelMaxBranches"
 #	CPPCHECK_BUILD_DIR				"/tmp/cppcheck"

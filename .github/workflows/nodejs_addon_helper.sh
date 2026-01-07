@@ -1370,7 +1370,7 @@ PRNSUCCESS "Start to check options and environments"
 # Default command parameters for each phase
 #
 CPPCHECK_TARGET="."
-CPPCHECK_BASE_OPT="--quiet --error-exitcode=1 --inline-suppr -j 8 --std=c++14 --xml --enable=warning,style,information,missingInclude"
+CPPCHECK_BASE_OPT="--quiet --error-exitcode=1 --inline-suppr -j 8 --std=c++17 --xml --enable=warning,style,information,missingInclude"
 CPPCHECK_ENABLE_VALUES="warning style information missingInclude"
 CPPCHECK_IGNORE_VALUES="unmatchedSuppression missingIncludeSystem normalCheckLevelMaxBranches"
 CPPCHECK_BUILD_DIR="/tmp/cppcheck"

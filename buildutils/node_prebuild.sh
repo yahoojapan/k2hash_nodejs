@@ -1,16 +1,18 @@
 #!/bin/sh
 #
-# K2HASH
+# Utility helper tools for Github Actions by AntPickax
 #
-# Copyright 2015 Yahoo Japan Corporation.
+# Copyright 2025 Yahoo Japan Corporation.
 #
-# K2HASH is key-valuew store base libraries.
-# K2HASH is made for the purpose of the construction of
-# original KVS system and the offer of the library.
-# The characteristic is this KVS library which Key can
-# layer. And can support multi-processing and multi-thread,
-# and is provided safely as available KVS.
+# AntPickax provides utility tools for supporting nodejs addon.
 #
+# These tools retrieve the necessary information from the
+# repository and appropriately set the setting values of
+# configure, Makefile, spec,etc file and so on.
+# These tools were recreated to reduce the number of fixes and
+# reduce the workload of developers when there is a change in
+# the project configuration.
+# 
 # For the full copyright and license information, please view
 # the license file that was distributed with this source code.
 #

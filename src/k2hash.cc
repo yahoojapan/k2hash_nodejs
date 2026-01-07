@@ -38,7 +38,7 @@ Napi::Value CreateObject(const Napi::CallbackInfo& info)
 Napi::Object InitAll(Napi::Env env, Napi::Object exports)
 {
 	// Class registration (creating a constructor)
-	K2hNode::Init(env, exports); // この中で constructor を作って Persistent に保存している想定
+	K2hNode::Init(env, exports);
 
 	// Create a factory function that returns module.exports
 	Napi::Function createFn = Napi::Function::New(env, CreateObject, "k2hash");
