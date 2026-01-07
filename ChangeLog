@@ -1,3 +1,9 @@
+k2hash (2.0.2) unstable; urgency=low
+
+  * Changed the cppcheck std version options, etc - #70
+
+ -- Takeshi Nakatani <ggtakec@gmail.com>  Wed, 07 Jan 2026 10:20:46 +0900
+
 k2hash (2.0.1) unstable; urgency=low
 
   * Changed cppcheck options and fixed the code - #68
