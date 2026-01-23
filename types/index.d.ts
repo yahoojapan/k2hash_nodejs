@@ -558,6 +558,9 @@ declare module 'k2hash'
 	export type K2hQueue			= k2hash.K2hQueue;
 	export type K2hKeyQueue			= k2hash.K2hKeyQueue;
 	export type K2hashFactoryType	= k2hash.K2hashFactoryType;
+
+	// Add convenient alias (PascalCase)
+	export type K2hash				= K2hNode;
 }
 
 /*
