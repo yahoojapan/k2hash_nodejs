@@ -1,3 +1,9 @@
+k2hash (2.0.3) unstable; urgency=low
+
+  * Added type aliases and exports for Typescript - #72
+
+ -- Takeshi Nakatani <ggtakec@gmail.com>  Fri, 23 Jan 2026 17:31:52 +0900
+
 k2hash (2.0.2) unstable; urgency=low
 
   * Changed the cppcheck std version options, etc - #70
