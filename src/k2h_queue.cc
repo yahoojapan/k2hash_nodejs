@@ -149,6 +149,8 @@ void K2hQueue::Init(Napi::Env env, Napi::Object exports)
 	//
 }
 
+// cppcheck-suppress unmatchedSuppression
+// cppcheck-suppress functionStatic
 Napi::Value K2hQueue::New(const Napi::CallbackInfo& info)
 {
 	if(info.IsConstructCall()){

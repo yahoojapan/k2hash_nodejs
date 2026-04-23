@@ -286,6 +286,8 @@ void K2hNode::Init(Napi::Env env, Napi::Object exports)
 	//
 }
 
+// cppcheck-suppress unmatchedSuppression
+// cppcheck-suppress functionStatic
 Napi::Value K2hNode::New(const Napi::CallbackInfo& info)
 {
 	if(info.IsConstructCall()){

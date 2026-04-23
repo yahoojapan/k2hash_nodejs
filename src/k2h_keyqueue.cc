@@ -148,6 +148,8 @@ void K2hKeyQueue::Init(Napi::Env env, Napi::Object exports)
 	//
 }
 
+// cppcheck-suppress unmatchedSuppression
+// cppcheck-suppress functionStatic
 Napi::Value K2hKeyQueue::New(const Napi::CallbackInfo& info)
 {
 	if(info.IsConstructCall()){
