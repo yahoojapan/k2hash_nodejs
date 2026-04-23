@@ -1,3 +1,9 @@
+k2hash (2.0.6) unstable; urgency=low
+
+  * Changed support OS/NodeJS and Fixed some code - #78
+
+ -- Takeshi Nakatani <ggtakec@gmail.com>  Thu, 23 Apr 2026 14:42:28 +0900
+
 k2hash (2.0.5) unstable; urgency=low
 
   * Fixed a build logic bug when a pre-build file was not available - #76
