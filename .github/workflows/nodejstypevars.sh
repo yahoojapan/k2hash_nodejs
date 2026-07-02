@@ -317,6 +317,23 @@ elif echo "${CI_OSTYPE}" | grep -q -i "fedora:43"; then
 
 	IS_OS_FEDORA=1
 
+elif echo "${CI_OSTYPE}" | grep -q -i "alpine:3.24"; then
+	INSTALLER_BIN="apk"
+	UPDATE_CMD="update"
+	UPDATE_CMD_ARG="--no-progress"
+	INSTALL_CMD="add"
+	INSTALL_CMD_ARG="--no-progress --no-cache"
+	INSTALL_AUTO_ARG=""
+	INSTALL_QUIET_ARG="-q"
+	INSTALL_PKG_LIST="bash sudo git build-base util-linux-misc musl-locales tar k2hash-dev"
+	NODEJS_PKG_LIST="nodejs npm python3 icu-data-full"
+
+	IS_OS_ALPINE=1
+
+	if [ "${CI_NODEJS_MAJOR_VERSION}" != "24" ]; then
+		NOT_PROVIDED_NODEVER=1
+	fi
+
 elif echo "${CI_OSTYPE}" | grep -q -i "alpine:3.23"; then
 	INSTALLER_BIN="apk"
 	UPDATE_CMD="update"
